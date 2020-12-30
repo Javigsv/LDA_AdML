@@ -217,7 +217,7 @@ def modApte_training_samples_screened(tag):
 
 
 def main():
-    corpus_file = 'Reuters Corpus Vectorized'; word_index_vocabulary_file = 'Reuters Corpus Vocabulary'
+    corpus_file = 'Reuters_Corpus_Vectorized'; word_index_vocabulary_file = 'Reuters_Corpus_Vocabulary'
 
     cp = ReutersCorpusPreprocessor()
     #cp.parse_reuters_21578_corpus(corpus_file, word_index_vocabulary_file)
