@@ -43,8 +43,8 @@ data: M x N   ----    List of M lists. Each sublist contains N elements accordin
 
 '''
 TODO: 
-1. Load the data using the class DataLoader
-2. Decide the implementation of variables N, M, k and V : either global variables or parameters of the methods
+1. Check the computation of alpha
+2. Optimise the computation of beta and lambda
 3. Test first iterations
 '''
 
