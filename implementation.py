@@ -1,5 +1,5 @@
 import numpy as np
-import scipy
+from scipy.special import digamma
 from DataLoader import DataLoader
 
 
@@ -37,6 +37,8 @@ z: k x 1      ----    Topic. It designs the beta parameter used in the multinomi
 gamma: k x 1  ----    Variational parameter for theta
 phi: k x N    ----    Variational parameter for the topic z
 
+data: M x N   ----    List of M lists. Each sublist contains N elements according to the words of each document. Note that N could be different for each document
+
 '''
 
 '''
@@ -47,70 +49,97 @@ TODO:
 '''
 
 
-def EM_algorithm():
+def EM_algorithm(corpus, V, k):
   # Initalize priors (beta, eta, alpha)
 
-  while not converged:
+  
+  alpha_old, beta_old, eta = initialize_parameters_EM(V, k)
+
+  # Initialize new parameters just to not fullfil convergence criteria
+  alpha_new = alpha_old + 100
+  beta_new = beta_old + 100
+
+  M = len(corpus)
+
+  it = 0
+  while not convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new):
+    it += 1
+    print('EM Iteration:', it)
 
     # E-step
     phis, gammas = [], []
-    for d in documents:
-      phi, gamma = VI_algorithm(alpha, beta, eta)
+    print('\tE-Step...')
+    for document in corpus:
+
+      phi, gamma = VI_algorithm(alpha_old, beta_old, eta, document, corpus, V, k)
 
       phis.append(phi), gammas.append(gamma)
 
     # M-step
-    beta_new = calculate_beta(phis, gammas)
+    print('\tM-Step...')
+    beta_new = calculate_beta(phis, corpus, V, k)
 
     alpha_new = calculate_alpha(phis, gammas)
 
+  
+  return alpha_new, beta_new
 
-def VI_algorithm(alpha, beta, eta):
+
+def VI_algorithm(alpha, beta, eta, document, corpus, V, k):
   # Extended pseudocode from page 1005
 
-  N, k = ,
+  N = len(document)
 
   # Step 1-2: Initalize parameters
-  phi_old, gamma_old, lambda_old = initialize_parameters(alpha, N, k)
+  phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha, N, k)
+
+  # Initialize new parameters just to not fullfil convergence criteria
+  phi_new = phi_old + 100
+  gamma_new = gamma_old + 100
 
   # Step 3-9: Run VI algorithm
-  while convergence_criteria(phi_old, gamma_old, phi_new, gamma_new):
+  it = 0
+  while not convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new):
     # Iterate between phi, gamma and lambda
+    it += 1
+    #print('\tVI Iteration:', it)
 
     # Calculate the new phis
-    phi_new = calculate_phi(gamma_old, beta)
+    phi_new = calculate_phi(gamma_old, beta, document, k)
 
     # Calculate the new gammas
-    gamma_new = calculate_gamma(phi_new, alpha)
+    gamma_new = calculate_gamma(phi_new, alpha, k)
 
     # Calculate the new lambdas (not sure about this one)
-    lambda_new = calculate_lambda(phi_new, eta)
+    #lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
 
     phi_old, gamma_old = phi_new, gamma_new
 
   return phi_old, gamma_old # Return the wanted parameters
 
 
-def calculate_beta(phis, gammas):
+def calculate_beta(phis, corpus, V, k):
   # Use the analytical expression in equation 9 page 1006
+  print("Beta computation")
+  M = len(corpus)
+
   beta = []
 
   for i in range(k):
     beta.append([])
     for j in range(V):
-      
-      beta[i][j] = 0
+      beta[i].append(0)
 
       for d in range(M):
-        N = len(data[d])
+        N = len(corpus[d])
         for n in range(N):
-         beta[i][j] += phis[d][n][i] * 1 if j == data[d][n] else 0
-
-    #TODO: Normalize each b[i]  
+          beta[i][j] += phis[d][n,i] * 1 if j == corpus[d][n]-1 else 0
 
     beta[i] = beta[i] / sum(beta[i]) # Normalizing
 
-  return beta
+  print('alpha comp')
+
+  return np.array(beta)
 
 
 def calculate_alpha(phis, gammas, alpha):
@@ -158,35 +187,116 @@ def calculate_alpha(phis, gammas, alpha):
   return alpha_new
 
 
-def calculate_phi(gamma_old, beta):
+def calculate_phi(gamma_old, beta, document, k):
+
+  N = len(document)
+
   phi = []
   for n in range(N):
-    phi_n = np.array([beta[i, word[n]] * np.exp(scipy.special.digamma(gamma_old[i])) for i in range(k)]) # According to step 6
+    phi_n = beta[:, document[n]-1] * np.exp(digamma(gamma_old)) # According to step 6
     
     phi_n = phi_n / np.sum(phi_n) # Normalize phi since it's a probability (must sum up to 1)
 
     phi.append(phi_n)
-  
-  return phi
+
+  return np.array(phi)
 
 
-def calculate_gamma(phi_new, alpha):
-  gamma = [alpha[i] + np.sum(phi_new[:,i]) for i in range(k)] # According to equation 7 on page 1004
+def calculate_gamma(phi_new, alpha, k):
+  # According to equation 7 on page 1004
+
+  #gamma = [alpha[i] + np.sum(phi_new[:,i]) for i in range(k)] 
+  gamma = alpha + np.sum(phi_new, 0)
 
   return gamma
 
 
-def calculate_lambda(phi_new, eta):
+def calculate_lambda(phi_new, eta, corpus, V, k):
   # Not sure about this one
-  lambda_new = eta + [[sum_d sum_n phi[d,n,i] * w[d,n,j] for i in range()] for j in range()]
+  # lambda_new = eta + [[phi_new[d,n,i] * w[d,n,j] for i in range()] for j in range()]
 
-def initialize_parameters(alpha, N, k):
-  phi = [[1 / k for i in range(k)] for j in range(k)]   # k is the number of priors (from the Dirichlet distribution)
-  gamma = [alpha[i] + N / k for i in range(k)]       # N is the number of words, alpha the priors of the Dirichlet distribution
+  M = len(corpus)
+
+  lambd = []
+
+  for i in range(k):
+    lambd.append([])
+    for j in range(V):
+      lambd[i].append(eta)
+
+      for d in range(M):
+        N = len(corpus[d])
+        for n in range(N):
+         lambd[i][j] += phi_new[d][n][i] * 1 if j == corpus[d][n] else 0
+
+  return lambd
+
+
+def initialize_parameters_VI(alpha, N, k):
+  # phi = [[1 / k for i in range(k)] for j in range(k)]   # k is the number of priors (from the Dirichlet distribution)
+  # gamma = [alpha[i] + N / k for i in range(k)]       # N is the number of words, alpha the priors of the Dirichlet distribution
+  phi = np.ones((k,k)) * 1/k
+  gamma = alpha.copy() + N / k
   lambd = 1                                             # I don't know
   return phi, gamma, lambd
 
 
-def convergence_criteria(phi, gamma):
+def initialize_parameters_EM(V, k):
+  # TODO: This is just an approach, it may be wrong
+
+  alpha = np.random.rand(k)       
+  beta = np.random.rand(k, V)
+  eta = 1                                             
+  return alpha, beta, eta
+
+
+def convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new, threshold = 1e-6):
   # Implement convergence criteria
-  pass
+
+  # TODO: This is just an approach, it may be wrong
+
+  if np.any(np.abs(phi_old - phi_new) > threshold):
+    return False
+
+  if np.any(np.abs(gamma_old - gamma_new) > threshold):
+    return False
+
+  return True
+
+
+def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, threshold = 1e-6):
+  # Implement convergence criteria
+
+  # TODO: This is just an approach, it may be wrong
+
+  if np.any(np.abs(alpha_old - alpha_new) > threshold):
+    return False
+
+  if np.any(np.abs(beta_old - beta_new) > threshold):
+    return False
+
+  return True
+
+
+def load_data(filename):
+
+  data_loader = DataLoader(filename)
+  data, V = data_loader.load()
+
+  return data, V
+
+
+def main():
+
+  k = 10
+
+  filename = './Code/Reuters_Corpus_Vectorized.csv'
+
+  corpus, V = load_data(filename)
+
+  alpha, beta = EM_algorithm(corpus, V, k)
+
+  print(alpha, beta)
+
+if __name__ == "__main__":
+    main()
