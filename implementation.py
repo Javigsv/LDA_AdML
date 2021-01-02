@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.special import digamma
 from DataLoader import DataLoader
+import time
 
 
 """
@@ -126,14 +127,25 @@ def calculate_beta(phis, corpus, V, k):
   beta = []
 
   for i in range(k):
+    print(i)
     beta.append([])
     for j in range(V):
+      print('\t',j)
       beta[i].append(0)
 
-      for d in range(M):
-        N = len(corpus[d])
-        for n in range(N):
-          beta[i][j] += phis[d][n,i] * 1 if j == corpus[d][n]-1 else 0
+      #for d in range(M):
+
+        # Approach 1: Slightly slower
+        #beta[i][j] += np.sum(phis[d][np.array(corpus[d]) == j,i])
+
+        # Approach 2: Considerably slower
+        #N = len(corpus[d])
+        #for n in range(N):
+        #  help2 += phis[d][n,i] * 1 if j == corpus[d][n] else 0
+
+      
+      # Approach 3: Quickest but still iterating over M
+      beta[i][j] = np.sum([np.sum(phis[d][np.array(corpus[d]) == j,i]) for d in range(M)])
 
     beta[i] = beta[i] / sum(beta[i]) # Normalizing
 
@@ -193,7 +205,7 @@ def calculate_phi(gamma_old, beta, document, k):
 
   phi = []
   for n in range(N):
-    phi_n = beta[:, document[n]-1] * np.exp(digamma(gamma_old)) # According to step 6
+    phi_n = beta[:, document[n]] * np.exp(digamma(gamma_old)) # According to step 6
     
     phi_n = phi_n / np.sum(phi_n) # Normalize phi since it's a probability (must sum up to 1)
 

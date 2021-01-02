@@ -14,6 +14,26 @@ class DataLoader:
     def __init__(self, filename):
         self.filename = filename
 
+    def load_one_hot(self):
+
+        data, V = self.load()
+
+        one_hot = []
+
+        D = len(data)
+
+        for d in range(D):
+
+            N = len(data[d])
+
+            doc = np.zeros((N,V))
+            doc[range(N),data[d]] = 1
+
+            one_hot.append(doc)
+
+        return one_hot, V      
+
+
     def load(self):
 
         data = []
@@ -30,9 +50,10 @@ class DataLoader:
 
             data.append(newLine)
         
-        V = self.count_vocabulary(data)
+        V = self.count_vocabulary(data) + 1
 
         return data, V
+
 
     def preprocess(self, rawLine):
 
@@ -43,6 +64,8 @@ class DataLoader:
         newLine = newLine.split(',')
 
         newLine = list(map(int, newLine))
+        
+        newLine = list(map(lambda x: x-1, newLine))
 
         return newLine
 
