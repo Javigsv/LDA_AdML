@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.special import digamma
+from scipy.special import digamma, polygamma
 from DataLoader import DataLoader
 import time
 
@@ -49,11 +49,9 @@ TODO:
 3. Test first iterations
 '''
 
-
+## EM-algorithm for whole corpus
 def EM_algorithm(corpus, V, k):
   # Initalize priors (beta, eta, alpha)
-
-  
   alpha_old, beta_old, eta = initialize_parameters_EM(V, k)
 
   # Initialize new parameters just to not fullfil convergence criteria
@@ -78,14 +76,15 @@ def EM_algorithm(corpus, V, k):
 
     # M-step
     print('\tM-Step...')
-    beta_new = calculate_beta(phis, corpus, V, k)
+    beta_new = calculate_beta2(phis, corpus, V, k)
 
-    alpha_new = calculate_alpha(phis, gammas)
+    alpha_new = calculate_alpha(gammas, alpha, M, k)
 
   
   return alpha_new, beta_new
 
 
+## VI-algorithm for a single document in the corpus
 def VI_algorithm(alpha, beta, eta, document, corpus, V, k):
   # Extended pseudocode from page 1005
 
@@ -119,6 +118,12 @@ def VI_algorithm(alpha, beta, eta, document, corpus, V, k):
   return phi_old, gamma_old # Return the wanted parameters
 
 
+## Derivative of the digamma function (help-function)
+def trigamma(a):
+  return polygamma(1, a)
+
+
+## To calculate beta in the M-step
 def calculate_beta(phis, corpus, V, k):
   # Use the analytical expression in equation 9 page 1006
   print("Beta computation")
@@ -154,66 +159,74 @@ def calculate_beta(phis, corpus, V, k):
   return np.array(beta)
 
 
-def calculate_alpha(phis, gammas, alpha):
-  # Use Newton-Raphson method suggested in A.2, page 1018-1019
+## New version of above function with inspriation from https://github.com/akashii99/Topic-Modelling-with-Latent-Dirichlet-Allocation/blob/master/LDA_blei_implement.ipynb
+## Was not able to complete it
+def calculate_beta2(phis, words, V, k):
+  print("Beta computation")
+  phis = np.array(phis)
+  print(phis.shape)
 
-  '''
-  alpha_new = alpha_old - H(alpha_old)^-1 * g(alpha_old)
-
-  Let H = diag(h) + 1z1^T
-
-  Now (H^-1g)_i = (g_i-c)/h_i where
-
-  c = sum(g_j / h/j) / (z^-1 +  sum(h_j^-1))
+  for j in range(V):
+    w_mnj = [np.tile((word == j), (k,1)).T for word in words]
 
 
-  https://tminka.github.io/papers/dirichlet/minka-dirichlet.pdf page 1-2
+## Newton-Raphson function to calculate new alpha in the M-step
+def calculate_alpha(gammas, alpha, M, k, nr_max_iterations = 1000, tolerance = 10 ** -3):
+  # Use Newton-Raphson method with linear complexity suggested by Thomas P. Minka in
+  # Estimating a Dirichlet distribution
 
-  delta function delta(x) = 
-                      1 if x = 0  
-                      0 otherwise
-  trigamma =  derivative of digamma
+  gammas = np.array(gammas)
+  for iteration in range(nr_max_iterations):
+    alpha_old = alpha
 
-  log_p = not exactly sure
+    # Calculate the observed efficient statistic
+    # Here we are using that the expected sufficient statistics are equal to the observed sufficient statistics
+    # for distributions in the exponential family when the gradient is zero
+    log_p_mean = 1 / M * np.sum((digamma(gammas) - np.tile(digamma(np.sum(gammas,axis=1)),(k,1)).T),axis=0)
 
-  '''
+    # Calculate the gradient
+    g = M * (digamma(np.sum(alpha)) - digamma(alpha) + log_p_mean)
 
-  alpha_old = alpha
+    # Calculate the diagonal of the Hessian
+    h = -M * trigamma(alpha)
 
-  while not converged:
+    # Calculate the constant component of the Hessian
+    z = M * trigamma(np.sum(alpha))
 
-    q = -N * [trigamma(alpha[k]) for k in range(len(alpha))]
+    # Calculate the constant
+    c = np.sum(g/h) / (1/z + np.sum(1/h))
 
-    z = N * trigamma(sum(alpha))
+    # Update equation for alpha
+    alpha = alpha - (g - c) / h
 
-    d = digamma(sum(alpha))
+    if np.linalg.norm(alpha-alpha_old) < tolerance:
+      break
 
-    log_p_mean = 1 / N * sum(log_p)
-
-    g = N * [d - digamma(alpha[k]) + log_p_mean]
-
-    b = sum([g[j]/q[j] for j in range(len(alpha))]) / ( 1/z + sum([1/q[j] for j in range(len(alpha))]))
-
-    alpha_new = [alpha_old - (g[k] - b) / q[k] for k in range(len(alpha))]
-
-  return alpha_new
+  return alpha
 
 
+## Calculate phi for document m
 def calculate_phi(gamma_old, beta, document, k):
 
+  # Length of document m (N_m)
   N = len(document)
 
   phi = []
   for n in range(N):
-    phi_n = beta[:, document[n]] * np.exp(digamma(gamma_old)) # According to step 6
+    # According to step 6
+    phi_n = beta[:, document[n]] * np.exp(digamma(gamma_old) - digamma(np.sum(gamma_old))) 
     
-    phi_n = phi_n / np.sum(phi_n) # Normalize phi since it's a probability (must sum up to 1)
+    # Normalize phi since it's a probability (must sum up to 1)
+    phi_n = phi_n / np.sum(phi_n) 
 
     phi.append(phi_n)
 
-  return np.array(phi)
+  phi = np.array(phi)
+
+  return phi
 
 
+## Calculate gamma for document m
 def calculate_gamma(phi_new, alpha, k):
   # According to equation 7 on page 1004
 
@@ -244,6 +257,7 @@ def calculate_lambda(phi_new, eta, corpus, V, k):
   return lambd
 
 
+## Initialize VI parameters
 def initialize_parameters_VI(alpha, N, k):
   # phi = [[1 / k for i in range(k)] for j in range(k)]   # k is the number of priors (from the Dirichlet distribution)
   # gamma = [alpha[i] + N / k for i in range(k)]       # N is the number of words, alpha the priors of the Dirichlet distribution
@@ -253,15 +267,20 @@ def initialize_parameters_VI(alpha, N, k):
   return phi, gamma, lambd
 
 
+## Initialize EM parameters
 def initialize_parameters_EM(V, k):
   # TODO: This is just an approach, it may be wrong
 
-  alpha = np.random.rand(k)       
+  # I think alpha is ok
+  alpha = np.random.rand(k)    
+
+  # Beta should probably be normalized   
   beta = np.random.rand(k, V)
   eta = 1                                             
   return alpha, beta, eta
 
 
+## Check for convergence in VI-algorithm
 def convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new, threshold = 1e-6):
   # Implement convergence criteria
 
@@ -276,6 +295,7 @@ def convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new, threshold = 
   return True
 
 
+## Check for convergence in EM-algorithm
 def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, threshold = 1e-6):
   # Implement convergence criteria
 
@@ -290,6 +310,7 @@ def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, threshold 
   return True
 
 
+## Load data
 def load_data(filename):
 
   data_loader = DataLoader(filename)
@@ -308,7 +329,7 @@ def main():
 
   alpha, beta = EM_algorithm(corpus, V, k)
 
-  print(alpha, beta)
+  # print(alpha, beta)
 
 if __name__ == "__main__":
     main()
