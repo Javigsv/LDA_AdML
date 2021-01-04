@@ -238,7 +238,7 @@ def calculate_gamma(phi_new, alpha, k):
 
 def calculate_lambda(phi_new, eta, corpus, V, k):
   # Not sure about this one
-  # lambda_new = eta + [[phi_new[d,n,i] * w[d,n,j] for i in range()] for j in range()]
+  # lambda_new = eta + [[phi_new[d,n,i] * w[d,n,j] for i in range()] for j in range()]  
 
   M = len(corpus)
 
@@ -271,8 +271,13 @@ def initialize_parameters_VI(alpha, N, k):
 def initialize_parameters_EM(V, k):
   # TODO: This is just an approach, it may be wrong
 
-  # I think alpha is ok
-  alpha = np.random.rand(k)    
+  # E) I think that we should maybe encode sparcity into each into the Dirichlet. See https://youtu.be/o22cA1DhSMQ?t=1566 for how an alpha < 1 does this.
+  """ approx_alpha = 0.01 # 0.1
+  alpha = np.random.uniform(approx_alpha - 0.1 * approx_alpha, approx_alpha + 0.1 * approx_alpha, k)
+  input(alpha) """
+
+    # I think alpha is ok
+  alpha = np.random.rand(k)      
 
   # Beta should probably be normalized   
   beta = np.random.rand(k, V)
@@ -326,6 +331,7 @@ def main():
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
   corpus, V = load_data(filename)
+
 
   alpha, beta = EM_algorithm(corpus, V, k)
 
