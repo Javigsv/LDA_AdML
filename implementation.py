@@ -76,11 +76,13 @@ def EM_algorithm(corpus, V, k):
 
     # M-step
     print('\tM-Step...')
-    beta_new = calculate_beta3(phis, corpus, V, k)
+    beta_new = calculate_beta(phis, corpus, V, k) # This is the quickest version
 
     alpha_new = calculate_alpha(gammas, alpha_old, M, k)
 
-    if convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new):
+    # We have three different versions of the convergence criteria, they are helpful in different situations
+    # they say if beta and/or alpha has converged, and if they haven't the print their new and old values
+    if convergence_criteria_EM3(alpha_old, beta_old, alpha_new, beta_new):
       break
     else:
       alpha_old = alpha_new
@@ -121,7 +123,7 @@ def VI_algorithm(alpha, beta, eta, document, corpus, V, k):
 
     phi_old, gamma_old = phi_new, gamma_new
 
-  return phi_old, gamma_old # Return the wanted parameters
+  return phi_new, gamma_new # Return the wanted parameters
 
 
 ## Derivative of the digamma function (help-function)
@@ -138,10 +140,10 @@ def calculate_beta(phis, corpus, V, k):
   beta = []
 
   for i in range(k):
-    print(i)
+    # print(i)
     beta.append([])
     for j in range(V):
-      print('\t',j)
+      # print('\t',j)
       beta[i].append(0)
 
       #for d in range(M):
@@ -160,7 +162,7 @@ def calculate_beta(phis, corpus, V, k):
 
     beta[i] = beta[i] / sum(beta[i]) # Normalizing
 
-  print('alpha comp')
+  # print('alpha comp')
 
   return np.array(beta)
 
@@ -197,6 +199,8 @@ def calculate_beta3(phis, corpus, V, k):
 
 
 ## Newton-Raphson function to calculate new alpha in the M-step
+## KNOWN ERROR: The alpha increases with an almost constant number for every iteration of the EM-algorithm
+## (not the Newton Raphson algorithm below)
 def calculate_alpha(gammas, alpha, M, k, nr_max_iterations = 1000, tolerance = 10 ** -4):
   # Use Newton-Raphson method with linear complexity suggested by Thomas P. Minka in
   # Estimating a Dirichlet distribution
@@ -288,7 +292,7 @@ def calculate_lambda(phi_new, eta, corpus, V, k):
 def initialize_parameters_VI(alpha, N, k):
   # phi = [[1 / k for i in range(k)] for j in range(k)]   # k is the number of priors (from the Dirichlet distribution)
   # gamma = [alpha[i] + N / k for i in range(k)]       # N is the number of words, alpha the priors of the Dirichlet distribution
-  phi = np.ones((k,k)) * 1/k
+  phi = np.ones((N,k)) * 1/k
   gamma = alpha.copy() + N / k
   lambd = 1                                             # I don't know
   return phi, gamma, lambd
@@ -357,7 +361,7 @@ def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, threshold 
 
 
 ## New version
-def convergence_criteria_EM2(alpha_old, beta_old, alpha_new, beta_new, threshold = 1e-6):
+def convergence_criteria_EM2(alpha_old, beta_old, alpha_new, beta_new, threshold = 1e-4):
   # Implement convergence criteria
 
   # TODO: This is just an approach, it may be wrong
@@ -384,7 +388,7 @@ def convergence_criteria_EM2(alpha_old, beta_old, alpha_new, beta_new, threshold
 
 
 ## New version
-def convergence_criteria_EM3(alpha_old, beta_old, alpha_new, beta_new, threshold = 1e-6):
+def convergence_criteria_EM3(alpha_old, beta_old, alpha_new, beta_new, threshold = 1e-4):
   # Implement convergence criteria
 
   # TODO: This is just an approach, it may be wrong
