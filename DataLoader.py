@@ -34,7 +34,7 @@ class DataLoader:
         return one_hot, V      
 
 
-    def load(self):
+    def load(self, num_documents = 10 ** 6):
 
         data = []
 
@@ -43,6 +43,10 @@ class DataLoader:
         rawData = file.readlines()
 
         rawData = list(filter(lambda a: a != '\n', rawData))
+
+        # Control the number of documents that should be read
+        if num_documents < len(rawData):
+            rawData = rawData[:num_documents]
 
         for rawLine in rawData:
 
@@ -78,6 +82,7 @@ class DataLoader:
 
         return max
 
-filename = './Code/Reuters_Corpus_Vectorized.csv'
-dl = DataLoader(filename)
-dl.load()
+if __name__ == "__main__":
+    filename = './Code/Reuters_Corpus_Vectorized.csv'
+    dl = DataLoader(filename)
+    dl.load()
