@@ -304,6 +304,7 @@ def initialize_parameters_EM(V, k):
   input(alpha) """
 
     # I think alpha is ok
+  approx_alpha = 0.01
   alpha = np.random.uniform(approx_alpha - 0.1 * approx_alpha, approx_alpha + 0.1 * approx_alpha, k)      
 
   # Beta should probably be normalized
@@ -337,14 +338,18 @@ def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, threshold 
   # TODO: This is just an approach, it may be wrong
 
   if np.any(np.abs(alpha_old - alpha_new) > threshold):
-    print("alpha not converged")
+    print("alpha not converged:")
+    print("from")
     print(alpha_old)
+    print("to")
     print(alpha_new)
     return False
 
   if np.any(np.abs(beta_old - beta_new) > threshold):
-    print("beta not converged")
+    print("beta not converged:")
+    print("from")
     print(beta_old)
+    print("to")
     print(beta_new)
     return False
 
@@ -363,12 +368,16 @@ def convergence_criteria_EM2(alpha_old, beta_old, alpha_new, beta_new, threshold
       print("beta converged")
       return True
     else:
-      print("beta not converged")
+      print("beta not converged:")
+      print("from")
       print(beta_old)
+      print("to")
       print(beta_new)
   else:
-    print("alpha not converged")
+    print("alpha not converged:")
+    print("from")
     print(alpha_old)
+    print("to")
     print(alpha_new)
 
   return False
@@ -387,13 +396,17 @@ def convergence_criteria_EM3(alpha_old, beta_old, alpha_new, beta_new, threshold
       print("alpha converged")
       return True
     else:
-      print("alpha not converged")
+      print("alpha not converged:")
+      print("from")
       print(alpha_old)
+      print("to")
       print(alpha_new)
   else:
-      print("beta not converged")
-      print(beta_old)
-      print(beta_new)
+    print("beta not converged:")
+    print("from")
+    print(beta_old)
+    print("to")
+    print(beta_new)
 
   return False
 
@@ -415,12 +428,7 @@ def main():
 
   corpus, V = load_data(filename, 5)
 
-<<<<<<< Updated upstream
-
-  alpha, beta = EM_algorithm(corpus, V, k)
-=======
   alpha, beta, phi, gamma = EM_algorithm(corpus, V, k)
->>>>>>> Stashed changes
 
   # print(alpha, beta)
 
