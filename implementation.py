@@ -304,11 +304,7 @@ def initialize_parameters_EM(V, k):
   input(alpha) """
 
     # I think alpha is ok
-<<<<<<< Updated upstream
-  alpha = np.random.rand(k)      
-=======
-  alpha = np.random.rand(k)
->>>>>>> Stashed changes
+  alpha = np.random.uniform(approx_alpha - 0.1 * approx_alpha, approx_alpha + 0.1 * approx_alpha, k)      
 
   # Beta should probably be normalized
   beta = np.random.rand(k, V)
