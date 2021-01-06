@@ -257,7 +257,7 @@ def calculate_alpha(gammas, alpha, M, k, nr_max_iterations = 1000, tolerance = 1
     b = np.sum(g/h) / (z ** -1 + np.sum(h ** -1))
 
     # Update equation for alpha
-    alpha = alpha - (g - b) / h
+    alpha = alpha - (g + b) / h
     # change += -g / h
 
     if np.linalg.norm(alpha-alpha_old) < tolerance:
@@ -531,9 +531,9 @@ def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
 
     # Printing values of rows
     rows = [row_1, row_2, row_3, row_4, row_5]
-    print("\nDocument", d+1, ":")
-    for (i,row) in enumerate(rows):
-      print("Row", i+1, "::", row)
+    # print("\nDocument", d+1, ":")
+    # for (i,row) in enumerate(rows):
+    #   print("Row", i+1, "::", row)
 
     L += row_1 + row_2 + row_3 + row_4 + row_5
   
@@ -542,11 +542,11 @@ def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
 
 def main():
 
-  k = 25
+  k = 3
 
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 10)
+  corpus, V = load_data(filename, 20)
 
   alpha, beta, phi, gamma = EM_algorithm(corpus, V, k)
 

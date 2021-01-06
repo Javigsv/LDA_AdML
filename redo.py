@@ -1,6 +1,8 @@
 import numpy as np
 import scipy
 from scipy import special
+from scipy.special import gamma as gamma_function
+from scipy.special import digamma, polygamma
 from DataLoader import DataLoader
 
 def Estep(k, d, alpha, beta, corpusMatrix, tol):    
@@ -26,6 +28,8 @@ def Estep(k, d, alpha, beta, corpusMatrix, tol):
           newPhi[n,i] = (beta[i, document[n]])*np.exp(scipy.special.psi(gamma[i]) - scipy.special.psi(np.sum(gamma)))
     newPhi = newPhi/np.sum(newPhi, axis = 1)[:, np.newaxis] #normalizing the rows of new phi
 
+    # print(newPhi.shape)
+
     for i in range(0,k):
       gamma[i] = alpha[i] + np.sum(newPhi[:, i]) #updating gamma
 
@@ -39,7 +43,36 @@ def Estep(k, d, alpha, beta, corpusMatrix, tol):
       converge = 0
   return (newPhi, gamma)
 
+def calculate_alpha(gamma, alphaOld, M, k, nr_max_iterations = 1000, tol = 10 ** -4):
+  h = np.zeros(k)
+  g = np.zeros(k)
+  alphaNew = np.zeros(k)
 
+  converge = 0
+  while converge == 0:
+    for i in range(0, k):
+      docSum = 0
+      for d in range(0, M):
+        docSum += digamma(gamma[d][i]) - digamma(np.sum(gamma[d]))
+      # print(docSum)
+      g[i] = M*(digamma(sum(alphaOld)) - digamma(alphaOld[i])) + docSum
+      h[i] = M*trigamma(alphaOld[i])
+    z =  M*trigamma(np.sum(alphaOld))
+    c = np.sum(g/h)/(1/z + np.sum(1/h))
+    step = (g - c)/h
+    # print(step)
+    alphaNew = alphaOld +step
+    # if np.linalg.norm(step) < tol:
+    if np.linalg.norm(alphaNew-alphaOld) < tol:
+      
+      converge = 1
+    else:
+      converge = 0
+      alphaOld = alphaNew
+
+  # print(alphaNew)
+  # raise ValueError('A very specific bad thing happened.')
+  return alphaNew
 
 #Update alpha using linear Newton-Rhapson Method#
 def alphaUpdate(k, M, alphaOld, gamma, tol):
@@ -64,7 +97,7 @@ def alphaUpdate(k, M, alphaOld, gamma, tol):
     else:
       converge = 0
       alphaOld = alphaNew
-
+  print(alphaNew)
   return alphaNew
 
 def Mstep(k, V, M, phi, gamma, alphaOld, corpusMatrix, tol):
@@ -83,9 +116,7 @@ def Mstep(k, V, M, phi, gamma, alphaOld, corpusMatrix, tol):
       beta[i,j] = wordSum
   #Normalize the rows of beta#
   beta = beta/np.sum(beta, axis = 1)[:, np.newaxis]
-  # print(np.sum(beta, axis = 1))
-  # print(beta)
-  # raise ValueError('A very specific bad thing happened.')
+
   ##Update ALPHA##
   alphaNew = alphaUpdate(k, M, alphaOld, gamma, tol)
   return(alphaNew, beta)
@@ -107,6 +138,8 @@ def LDA(k, V, corpus, tol):
   output = []
   
   converge = 0
+
+  np.random.seed(1)
   #initialize alpha and beta for first iteration
   #alphaOld = 10*np.random.rand(k)
   alphaOld = np.full(shape = k, fill_value = 50/k)
@@ -129,6 +162,8 @@ def LDA(k, V, corpus, tol):
     print("M-step")
     alphaNew, betaNew = Mstep(k, V, M, phi, gamma, alphaOld, corpus, tol)
 
+    print(lower_bound(alphaNew, betaNew, phi, gamma, k, V, corpus))
+
     if np.linalg.norm(alphaOld - alphaNew) < tol or np.linalg.norm(betaOld - betaNew) < tol:
       converge =1
     else: 
@@ -141,6 +176,64 @@ def LDA(k, V, corpus, tol):
       
   return output
 
+
+## The lower bound
+def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
+  L = 0
+  # Parts on corpus level
+  alpha_part_1 = np.log(gamma_function(np.sum(alpha))) - np.sum(np.log(gamma_function(alpha)))
+
+  for (d, document) in enumerate(corpus):
+    N = len(document)
+    gamma = gammas[d]
+    phi = phis[d]
+
+    digamma_gamma = digamma(np.sum(gamma))
+
+    # The first row
+    row_1 =  alpha_part_1 + np.sum((alpha-1)*(digamma(gamma) - digamma_gamma))
+
+
+    # The second row
+    row_2 = np.sum(phi * np.tile((digamma(gamma) - digamma_gamma), (N,1)))
+
+
+    # The third row
+    row_3 = 0
+    for n in range(N):
+      for j in range(V):
+        for i in range(k):
+          if document[n] == j:
+            row_3 += phi[n,i]*np.log(beta[i,j])
+
+
+    # The fourth row
+    # print("Test")
+    # print(gamma)
+    # print(-np.log(gamma_function(np.sum(gamma))))
+    # print(gamma_function(np.sum(gamma)))
+    # print(np.sum(np.log(gamma_function(gamma))))
+    # print( - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma)))
+    row_4 = -np.log(gamma_function(np.sum(gamma))) + np.sum(np.log(gamma_function(gamma))) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma))
+
+    # print(np.sum(gamma))
+    # raise ValueError('A very specific bad thing happened.')
+
+    # The fifth row
+    row_5 = np.sum(phi * np.log(phi))
+
+    # Printing values of rows
+    rows = [row_1, row_2, row_3, row_4, row_5]
+    print("\nDocument", d+1, ":")
+    for (i,row) in enumerate(rows):
+      print("Row", i+1, "::", row)
+
+    L += sum(rows)
+  
+  return L
+
+
+
 ## Load data
 def load_data(filename, num_documents):
 
@@ -150,12 +243,14 @@ def load_data(filename, num_documents):
   return data, V
 
 
-k = 5
+k = 3
 
 filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-corpus, V = load_data(filename, 10)
+corpus, V = load_data(filename, 7)
 
 tol = 1e-4
 
-print(LDA(k, V, corpus, tol))
+output = LDA(k, V, corpus, tol)
+
+print(output)
