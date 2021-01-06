@@ -6,6 +6,10 @@ from DataLoader import DataLoader
 import time
 
 
+## TODO
+# Fix the lower bound
+# Make the calculation of beta more efficient
+
 """
 The algorithm in short:
 
@@ -92,16 +96,19 @@ def initialize_parameters_VI(alpha, N, k):
 
 ## Calculate phi for document m
 def calculate_phi(gamma, beta, document, k):
-
   N = len(document)
 
-  phi = np.zeros((N,k))
+  phi = []
   for n in range(N):
-    for i in range(k):
-      phi[n,i] = beta[i, document[n]] * np.exp(digamma(gamma[i]) - digamma(np.sum(gamma)))
-  
+    # According to step 6
+    phi_n = beta[:, document[n]] * np.exp(digamma(gamma) - digamma(np.sum(gamma)))
 
-  phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
+    # Normalize phi since it's a probability (must sum up to 1)
+    phi_n = phi_n / np.sum(phi_n)
+
+    phi.append(phi_n)
+
+  phi = np.array(phi)
 
   return phi
 
@@ -109,10 +116,7 @@ def calculate_phi(gamma, beta, document, k):
 ## Calculate gamma for document m
 def calculate_gamma(phi, alpha, k):
   # According to equation 7 on page 1004
-  # gamma = alpha + np.sum(phi, axis = 0)
-  gamma = np.zeros(k)
-  for i in range(0,k):
-    gamma[i] = alpha[i] + np.sum(phi[:, i]) #updating gamma
+  gamma = alpha + np.sum(phi, axis = 0)
 
   return gamma
 
@@ -391,11 +395,11 @@ def LDA_algorithm(corpus, V, k):
 ## Main function
 def main():
   
-  k = 3
+  k = 2
 
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 20)
+  corpus, V = load_data(filename, 5)
 
   parameters = LDA_algorithm(corpus, V, k)
 
