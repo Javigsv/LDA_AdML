@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.special import digamma, polygamma
+from scipy.special import gamma as gamma_function
+import scipy
 from DataLoader import DataLoader
 import time
 
@@ -55,13 +57,15 @@ def EM_algorithm(corpus, V, k):
   alpha_old, beta_old, eta = initialize_parameters_EM(V, k)
 
   # Initialize new parameters just to not fullfil convergence criteria
-  alpha_new = alpha_old + 100
-  beta_new = beta_old + 100
+  alpha_new = alpha_old + 1
+  beta_new = beta_old + 1
 
   M = len(corpus)
 
   it = 0
   while True:
+    print("Alpha:")
+    print(alpha_old)
     it += 1
     print('EM Iteration:', it)
 
@@ -76,9 +80,10 @@ def EM_algorithm(corpus, V, k):
 
     # M-step
     print('\tM-Step...')
-    beta_new = calculate_beta(phis, corpus, V, k) # This is the quickest version
+    beta_new = calculate_beta4(phis, corpus, V, k) # This is the quickest version
 
     alpha_new = calculate_alpha(gammas, alpha_old, M, k)
+    # alpha_new = alphaUpdate(gammas, alpha_old, M, k)
 
     # We have three different versions of the convergence criteria, they are helpful in different situations
     # they say if beta and/or alpha has converged, and if they haven't the print their new and old values
@@ -87,6 +92,8 @@ def EM_algorithm(corpus, V, k):
     else:
       alpha_old = alpha_new
       beta_old = beta_new
+    
+    print(lower_bound(alpha_old, beta_old, phis, gammas, k, V, corpus))
 
 
   return alpha_new, beta_new, phis, gammas
@@ -102,8 +109,8 @@ def VI_algorithm(alpha, beta, eta, document, corpus, V, k):
   phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha, N, k)
 
   # Initialize new parameters just to not fullfil convergence criteria
-  phi_new = phi_old + 100
-  gamma_new = gamma_old + 100
+  phi_new = phi_old + 0.1
+  gamma_new = gamma_old + 0.1
 
   # Step 3-9: Run VI algorithm
   it = 0
@@ -122,6 +129,7 @@ def VI_algorithm(alpha, beta, eta, document, corpus, V, k):
     #lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
 
     phi_old, gamma_old = phi_new, gamma_new
+  
 
   return phi_new, gamma_new # Return the wanted parameters
 
@@ -160,11 +168,14 @@ def calculate_beta(phis, corpus, V, k):
       # Approach 3: Quickest but still iterating over M
       beta[i][j] = np.sum([np.sum(phis[d][np.array(corpus[d]) == j,i]) for d in range(M)])
 
-    beta[i] = beta[i] / sum(beta[i]) # Normalizing
+    # beta[i] = beta[i] / sum(beta[i]) # Normalizing
 
-  # print('alpha comp')
+  beta = np.array(beta)
+  for i in range(k): # Normalizing
+    beta[:,i] = beta[:,i]/sum(beta[:,i])
+  
 
-  return np.array(beta)
+  return beta
 
 
 ## New version of above function with inspriation from https://github.com/akashii99/Topic-Modelling-with-Latent-Dirichlet-Allocation/blob/master/LDA_blei_implement.ipynb
@@ -184,7 +195,7 @@ def calculate_beta2(phis, coprus, V, k):
   return beta
 
 
-def calculate_beta3(phis, corpus, V, k):
+def calculate_beta4(phis, corpus, V, k):
   beta = np.zeros((V, k))
   for j in range(V):
     for m in range(len(corpus)):
@@ -197,6 +208,23 @@ def calculate_beta3(phis, corpus, V, k):
   return beta.T
 
 
+def calculate_beta4(phis, corpus, V, k):
+  # Use the analytical expression in equation 9 page 1006
+  print("Beta computation")
+  M = len(corpus)
+
+  beta = np.zeros((k,V))
+
+  for i in range(k):
+    for j in range(V):
+      beta[i,j] = np.sum([np.sum(phis[d][np.array(corpus[d]) == j,i]) for d in range(M)])
+
+  beta = np.array(beta)
+  for i in range(k): # Normalizing
+    beta[:,i] = beta[:,i]/sum(beta[:,i])
+  
+
+  return beta
 
 ## Newton-Raphson function to calculate new alpha in the M-step
 ## KNOWN ERROR: The alpha increases with an almost constant number for every iteration of the EM-algorithm
@@ -204,6 +232,8 @@ def calculate_beta3(phis, corpus, V, k):
 def calculate_alpha(gammas, alpha, M, k, nr_max_iterations = 1000, tolerance = 10 ** -4):
   # Use Newton-Raphson method with linear complexity suggested by Thomas P. Minka in
   # Estimating a Dirichlet distribution
+  
+  # change = np.zeros(k)
 
   gammas = np.array(gammas)
   for iteration in range(nr_max_iterations):
@@ -212,7 +242,7 @@ def calculate_alpha(gammas, alpha, M, k, nr_max_iterations = 1000, tolerance = 1
     # Calculate the observed efficient statistic
     # Here we are using that the expected sufficient statistics are equal to the observed sufficient statistics
     # for distributions in the exponential family when the gradient is zero
-    log_p_mean = np.sum((digamma(gammas) - np.tile(digamma(np.sum(gammas,axis=1)),(k,1)).T),axis=0)
+    log_p_mean = np.sum((digamma(gammas)-np.tile(digamma(np.sum(gammas,axis=1)),(k,1)).T),axis=0)
 
     # Calculate the gradient
     g = M * (digamma(np.sum(alpha)) - digamma(alpha)) + log_p_mean
@@ -224,16 +254,45 @@ def calculate_alpha(gammas, alpha, M, k, nr_max_iterations = 1000, tolerance = 1
     z = M * trigamma(np.sum(alpha))
 
     # Calculate the constant
-    b = np.sum(g/h) / (1/z + np.sum(1/h))
+    b = np.sum(g/h) / (z ** -1 + np.sum(h ** -1))
 
     # Update equation for alpha
     alpha = alpha - (g - b) / h
+    # change += -g / h
 
     if np.linalg.norm(alpha-alpha_old) < tolerance:
       # print("Newton Raphson Converged in", iteration, "steps!")
+      # print(change)
       break
 
   return alpha
+
+
+## Taken from https://github.com/mar87/latent_dirichlet_allocation/blob/master/Appendix.ipynb
+def alphaUpdate(gamma, alphaOld, M, k, nr_max_iterations = 1000, tol = 10 ** -4):
+    h = np.zeros(k)
+    g = np.zeros(k)
+    alphaNew = np.zeros(k)
+
+    converge = 0
+    while converge == 0:
+        for i in range(0, k):
+            docSum = 0
+            for d in range(0, M):
+                docSum += scipy.special.psi(gamma[d][i]) - scipy.special.psi(np.sum(gamma[d]))
+            g[i] = M*(scipy.special.psi(sum(alphaOld)) - scipy.special.psi(alphaOld[i])) + docSum
+            h[i] = M*scipy.special.polygamma(1, alphaOld[i])
+        z =  -scipy.special.polygamma(1, np.sum(alphaOld))
+        c = np.sum(g/h)/(1/z + np.sum(1/h))
+        step = (g - c)/h
+        alphaNew = alphaOld +step
+        if np.linalg.norm(step) < tol:
+            converge = 1
+        else:
+            converge = 0
+            alphaOld = alphaNew
+
+    return alphaNew
 
 
 ## Calculate phi for document m
@@ -243,7 +302,12 @@ def calculate_phi(gamma, beta, document, k):
   N = len(document)
 
   phi = []
+  # phi = np.full(shape = (N,k), fill_value = 1/k)
   for n in range(N):
+    # for i in range(k):
+    #   phi[n,i] = beta[i, document[n]] * np.exp(digamma(gamma[i]) - digamma(np.sum(gamma)))
+    
+    # phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
     # According to step 6
     phi_n = beta[:, document[n]] * np.exp(digamma(gamma) - digamma(np.sum(gamma)))
 
@@ -260,9 +324,11 @@ def calculate_phi(gamma, beta, document, k):
 ## Calculate gamma for document m
 def calculate_gamma(phi, alpha, k):
   # According to equation 7 on page 1004
-
-  #gamma = [alpha[i] + np.sum(phi[:,i]) for i in range(k)]
-  gamma = alpha + np.sum(phi, axis = 0)
+  gamma = np.zeros((alpha.shape))
+  for i in range(0,k):
+    gamma[i] = alpha[i] + np.sum(phi[:, i]) #updating gamma
+  # gamma = np.array([alpha[i] + np.sum(phi[:,i]) for i in range(k)])
+  # gamma = alpha + np.sum(phi, axis = 0)
 
   return gamma
 
@@ -301,6 +367,7 @@ def initialize_parameters_VI(alpha, N, k):
 ## Initialize EM parameters
 def initialize_parameters_EM(V, k):
   # TODO: This is just an approach, it may be wrong
+  np.random.seed(1)
 
   # E) I think that we should maybe encode sparcity into each into the Dirichlet. See https://youtu.be/o22cA1DhSMQ?t=1566 for how an alpha < 1 does this.
   """ approx_alpha = 0.01 # 0.1
@@ -424,13 +491,62 @@ def load_data(filename, num_documents):
   return data, V
 
 
+def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
+  L = 0
+  # Parts on corpus level
+  alpha_part_1 = np.log(gamma_function(np.sum(alpha))) - np.sum(np.log(gamma_function(alpha)))
+
+  for (d, document) in enumerate(corpus):
+    N = len(document)
+    gamma = gammas[d]
+    phi = phis[d]
+
+    digamma_gamma = digamma(np.sum(gamma))
+
+    # The first row
+    row_1 =  alpha_part_1 + np.sum((alpha-1)*(digamma(gamma) - digamma_gamma))
+
+
+    # The second row
+    row_2 = np.sum(phi * np.tile((digamma(gamma) - digamma_gamma), (N,1)))
+
+
+    # The third row
+    row_3 = 0
+    for n in range(N):
+      for j in range(V):
+        for i in range(k):
+          if document[n] == j:
+            row_3 += phi[n,i]*np.log(beta[i,j])
+
+
+    # The fourth row
+    row_4 = -np.log(gamma_function(np.sum(gamma))) + np.sum(np.log(gamma_function(gamma))) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma))
+
+    # print(np.sum(gamma))
+    # raise ValueError('A very specific bad thing happened.')
+
+    # The fifth row
+    row_5 = np.sum(phi * np.log(phi))
+
+    # Printing values of rows
+    rows = [row_1, row_2, row_3, row_4, row_5]
+    print("\nDocument", d+1, ":")
+    for (i,row) in enumerate(rows):
+      print("Row", i+1, "::", row)
+
+    L += row_1 + row_2 + row_3 + row_4 + row_5
+  
+  return L
+
+
 def main():
 
-  k = 10
+  k = 25
 
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 5)
+  corpus, V = load_data(filename, 10)
 
   alpha, beta, phi, gamma = EM_algorithm(corpus, V, k)
 
