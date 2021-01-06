@@ -19,6 +19,7 @@ def Estep(k, d, alpha, beta, corpusMatrix, tol):
   count = 0
   
   while converge == 0:
+    # print("Iteration", count+1, "of VI")
     newPhi  = np.zeros(shape = (N,k))
     for n in range(0, N):
       for i in range(0,k):
@@ -28,7 +29,7 @@ def Estep(k, d, alpha, beta, corpusMatrix, tol):
     for i in range(0,k):
       gamma[i] = alpha[i] + np.sum(newPhi[:, i]) #updating gamma
 
-
+    # print(newPhi)
     criteria = (1/(N*k)*np.sum((newPhi - oldPhi)**2))**0.5
     if criteria < tol:
       converge = 1
@@ -76,13 +77,15 @@ def Mstep(k, V, M, phi, gamma, alphaOld, corpusMatrix, tol):
       wordSum = 0
       for d in range(0,M):
         Nd = len(corpus[d])
-        for n in range(0, Nd):
-          if corpus[d] == n:
+        for n in range(Nd):
+          if corpus[d][n] == j:
             wordSum += phi[d][n,i]
       beta[i,j] = wordSum
   #Normalize the rows of beta#
   beta = beta/np.sum(beta, axis = 1)[:, np.newaxis]
-  
+  # print(np.sum(beta, axis = 1))
+  # print(beta)
+  # raise ValueError('A very specific bad thing happened.')
   ##Update ALPHA##
   alphaNew = alphaUpdate(k, M, alphaOld, gamma, tol)
   return(alphaNew, beta)
@@ -116,11 +119,14 @@ def LDA(k, V, corpus, tol):
     phi = []
     gamma = []
     #looping through the number of documents
+    print("E-step")
     for d in range(0,M): #M is the number of documents
+      # print("Document:", d)
       phiT, gammaT = Estep(k, d, alphaOld, betaOld, corpus, tol)
       phi.append(phiT)
       gamma.append(gammaT)
         
+    print("M-step")
     alphaNew, betaNew = Mstep(k, V, M, phi, gamma, alphaOld, corpus, tol)
 
     if np.linalg.norm(alphaOld - alphaNew) < tol or np.linalg.norm(betaOld - betaNew) < tol:
@@ -144,12 +150,12 @@ def load_data(filename, num_documents):
   return data, V
 
 
-k = 3
+k = 5
 
 filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-corpus, V = load_data(filename, 4)
+corpus, V = load_data(filename, 10)
 
-tol = 1e-2
+tol = 1e-4
 
 print(LDA(k, V, corpus, tol))
