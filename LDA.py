@@ -96,6 +96,20 @@ def initialize_parameters_VI(alpha, N, k):
   return phi, gamma, lambd
 
 
+## Initialize VI parameters
+def initialize_parameters_VI_new(alpha, corpus, k):
+  # M x N_d x k
+  phi = []
+  for document in corpus:
+    phi.append(np.ones((len(document),k)) * 1/k)
+
+  # M x k
+  gamma = np.tile(alpha.copy(),(len(corpus),1)) + np.tile(np.array(list(map(lambda x: len(x),corpus))),(k,1)).T / k
+
+  lambd = 1 # Should probably be changed
+  return phi, gamma, lambd
+
+
 ## Calculate phi for document m
 def calculate_phi(gamma, beta, document, k):
   N = len(document)
@@ -115,10 +129,35 @@ def calculate_phi(gamma, beta, document, k):
   return phi
 
 
+## Calculate phi for whole corpus
+def calculate_phi_new(gamma, beta, corpus, k):
+  phi = []
+  for (d,document) in enumerate(corpus): # M documents
+    N_d = len(document)
+    phi_d = np.zeros((N_d, k))
+    for n in range(N_d):
+      # According to step 6
+      phi_d[n,:] = beta[:, document[n]] * np.exp(digamma(gamma[d,:]) - digamma(np.sum(gamma[d,:])))
+
+      # Normalize phi since it's a probability (must sum up to 1)
+      phi_d[n,:] = phi_d[n,:] / np.sum(phi_d[n,:])
+
+    phi.append(phi_d)
+  return phi
+
+
 ## Calculate gamma for document m
 def calculate_gamma(phi, alpha, k):
   # According to equation 7 on page 1004
   gamma = alpha + np.sum(phi, axis = 0)
+
+  return gamma
+
+
+## Calculate gamma for whole corpus
+def calculate_gamma_new(phi, alpha, M):
+  # According to equation 7 on page 1004
+  gamma = np.tile(alpha,(M,1)) + np.array(list(map(lambda x: np.sum(x,axis=0),phi)))
 
   return gamma
 
@@ -144,8 +183,7 @@ def calculate_beta_prev_version(phi, corpus, V, k):
   return beta
 
 
-
-
+## To calculate beta in the M-step
 def calculate_beta_new_version(phi, corpus, V, k):
   beta = np.zeros((k,V))
   
@@ -158,7 +196,6 @@ def calculate_beta_new_version(phi, corpus, V, k):
   beta = beta/np.sum(beta, axis = 1)[:, np.newaxis]
 
   return beta
-
 
 
 ## To calculate beta in the M-step
@@ -206,6 +243,7 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
   # Estimating a Dirichlet distribution
 
   gamma = np.array(gamma)
+
   log_p_mean = np.sum((digamma(gamma)-np.tile(digamma(np.sum(gamma,axis=1)),(k,1)).T),axis=0)
 
   for it in range(nr_max_iterations):
@@ -219,16 +257,16 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
     g = M * (digamma(np.sum(alpha)) - digamma(alpha)) + log_p_mean
 
     # Calculate the diagonal of the Hessian
-    h = M * trigamma(alpha)
+    h = - M * trigamma(alpha)
 
     # Calculate the constant component of the Hessian
     z = M * trigamma(np.sum(alpha))
 
     # Calculate the constant
-    b = np.sum(g/h) / (1/z + np.sum(1/h))
+    b = np.sum(g/h) / (1/z - np.sum(1/h))
 
     # Update equation for alpha
-    alpha = alpha + (g - b) / h
+    alpha = alpha - (g - b) / h
 
     if np.linalg.norm(alpha-alpha_old) < tolerance:
       break
@@ -280,7 +318,23 @@ def convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new, threshold = 
     return False
 
   return True
-  
+
+
+## Check for convergence in VI-algorithm
+def convergence_criteria_VI_new(phi_old, gamma_old, phi_new, gamma_new, threshold = 1e-4):
+  # Implement convergence criteria
+
+  for d in range(len(phi_old)):
+    # if np.any(np.abs(phi_old[d] - phi_new[d]) > threshold):
+    if np.linalg.norm(phi_old[d] - phi_new[d]) > threshold:
+      return False
+
+  # if np.any(np.abs(gamma_old - gamma_new) > threshold):
+  if np.linalg.norm(gamma_old - gamma_new) > threshold:
+    return False
+
+  return True
+ 
 
 ## Check for convergence in EM-algorithm
 def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = False, threshold = 1e-4):
@@ -381,9 +435,9 @@ def VI_algorithm(k, document, alpha, beta, eta, debug = False):
   phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha, N, k)
 
   # Step 3-9: Run VI algorithm
-  it = 0
+  # it = 0
   while True:
-    it += 1
+    # it += 1
     
     if debug:
       print('\tVI Iteration:', it)
@@ -406,10 +460,78 @@ def VI_algorithm(k, document, alpha, beta, eta, debug = False):
   return phi_new, gamma_new
 
 
-## LDA function
-def LDA_algorithm(corpus, V, k):
+## VI-algorithm run during the E-step for every document m
+def VI_algorithm_new(k, M, corpus, alpha, beta, eta):
+  # Extended pseudocode from page 1005
+
+  # Step 1-2: Initalize parameters
+  phi_old, gamma_old, lambda_old = initialize_parameters_VI_new(alpha, corpus, k)
+
+  # it = 0
+  # Step 3-9: Run VI algorithm
+  while True:
+    # it += 1
+    
+    # Calculate the new phis
+    phi_new = calculate_phi_new(gamma_old, beta, corpus, k)
+
+    # Calculate the new gammas
+    gamma_new = calculate_gamma_new(phi_new, alpha, M)
+  
+    # Calculate the new lambdas (not sure about this one)
+    #lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
+  
+    if convergence_criteria_VI_new(phi_old, gamma_old, phi_new, gamma_new):
+      break
+    else:
+      phi_old = phi_new
+      gamma_old = gamma_new
+
+  return phi_new, gamma_new
+
+
+## VI-algorithm run during the E-step for every document m
+def VI_algorithm_new2(k, document, phi_old, gamma_old, lambda_old, alpha, beta, eta, debug = False):
+  N = len(document)
+
+  # Extended pseudocode from page 1005
+
+  # Step 1-2: Initalize parameters
+  # phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha, N, k)
+
+  # Step 3-9: Run VI algorithm
+  # it = 0
+  while True:
+    # it += 1
+    
+    # if debug:
+    #   print('\tVI Iteration:', it)
+    
+    # Calculate the new phis
+    phi_new = calculate_phi(gamma_old, beta, document, k)
+
+    # Calculate the new gammas
+    gamma_new = calculate_gamma(phi_new, alpha, k)
+  
+    # Calculate the new lambdas (not sure about this one)
+    #lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
+  
+    if convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new):
+      break
+    else:
+      phi_old = phi_new
+      gamma_old = gamma_new
+
+  return phi_new, gamma_new
+
+
+
+## LDA function with debug prints
+def LDA_algorithm_debug(corpus, V, k):
   alpha_old, beta_old, eta_old = initialize_parameters_EM(V, k)
   M = len(corpus)
+
+  phi2_old, gamma2_old, lambda2_old = initialize_parameters_VI_new(alpha_old, corpus, k)
 
   it = 0
   ########################
@@ -425,6 +547,29 @@ def LDA_algorithm(corpus, V, k):
     # --- E-step --- #
     ##################
     print("\nE-step...")
+
+    ## New E-step
+    start2 = time.time()
+    VI_algorithm_new(k, M, corpus, alpha_old, beta_old, eta_old)
+    stop2 = time.time()
+    print('... [all at once] completed in:', stop2 - start2)
+
+
+    ## New E-step 2
+    start3 = time.time()
+
+    phi2_new, gamma2_new = [], []
+
+    for (d,document) in enumerate(corpus):
+      phi_d, gamma_d = VI_algorithm_new2(k, document, phi2_old[d], gamma2_old[d], lambda2_old, alpha_old, beta_old, eta_old)
+      phi2_new.append(phi_d); gamma2_new.append(gamma_d)
+    
+    phi2_old, gamma2_old = phi2_new, gamma2_new
+
+    stop3 = time.time()
+    print('... [seperate with saved gamma and phi] completed in:', stop3 - start3)
+    
+    ## Old E-step
     start = time.time()
 
     phi, gamma = [], []
@@ -432,9 +577,10 @@ def LDA_algorithm(corpus, V, k):
     for document in corpus:
       phi_d, gamma_d = VI_algorithm(k, document, alpha_old, beta_old, eta_old)
       phi.append(phi_d); gamma.append(gamma_d)
-    
+
     stop = time.time()
-    print('...completed in:', stop - start)
+    print('...[seperate, old] completed in:', stop - start)
+
 
     ##################
     # --- M-step --- #
@@ -452,11 +598,11 @@ def LDA_algorithm(corpus, V, k):
     beta_end = time.time()
     print('\tCalc. beta previous version completed in ', beta_end - beta_start)
 
-    print('\nEQUAL?')
-    print(np.array_equal(beta_new, beta_new_2))
-    print('\n', beta_new[0], '\n', sum(beta_new[0]))
-    print('\n', beta_new_2[0], '\n', sum(beta_new_2[0]))
-    input()
+    # print('\nEQUAL?')
+    # print(np.array_equal(beta_new, beta_new_2))
+    # print('\n', beta_new[0], '\n', sum(beta_new[0]))
+    # print('\n', beta_new_2[0], '\n', sum(beta_new_2[0]))
+    # input()
 
     alphastart = time.time()
     alpha_new = calculate_alpha(gamma, alpha_old, M, k)
@@ -481,6 +627,60 @@ def LDA_algorithm(corpus, V, k):
   return [alpha_new, beta_new, phi, gamma]
 
 
+## LDA function
+def LDA_algorithm(corpus, V, k):
+  alpha_old, beta_old, eta_old = initialize_parameters_EM(V, k)
+  M = len(corpus)
+
+  phi2_old, gamma2_old, lambda2_old = initialize_parameters_VI_new(alpha_old, corpus, k)
+
+  it = 0
+  ########################
+  # --- EM-algorithm --- #
+  ########################
+  while True:
+    # print(alpha_old)
+    it += 1
+
+    print("EM-iteration:", it)
+
+    ##################
+    # --- E-step --- #
+    ##################
+    print("\nE-step...")
+
+    phi2_new, gamma2_new = [], []
+
+    for (d,document) in enumerate(corpus):
+      phi_d, gamma_d = VI_algorithm_new2(k, document, phi2_old[d], gamma2_old[d], lambda2_old, alpha_old, beta_old, eta_old)
+      phi2_new.append(phi_d); gamma2_new.append(gamma_d)
+    
+    phi2_old, gamma2_old = phi2_new, gamma2_new
+
+
+    ##################
+    # --- M-step --- #
+    ##################
+    print("\nM-step...")
+
+    beta_new = calculate_beta_new_version(phi2_old, corpus, V, k)
+
+    alpha_new = calculate_alpha(gamma2_old, alpha_old, M, k)
+
+    ########################
+    # --- Convergence? --- #
+    ########################
+    #print(lower_bound(alpha_new, beta_new, phi, gamma, k, V, corpus))
+    if convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = True):
+      print("Convergence after", it, "iterations!")
+      break
+    else:
+      alpha_old = alpha_new
+      beta_old = beta_new
+    
+  return [alpha_new, beta_new, phi2_old, gamma2_old]
+
+
 def print_top_words_for_all_topics(beta, top_x, k):
   '''This function somehow disappeared, will rewrite it later /E'''
   pass
@@ -488,13 +688,15 @@ def print_top_words_for_all_topics(beta, top_x, k):
 ## Main function
 def main():
 
-  k = 10
+  k = 3
 
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 100)
+  corpus, V = load_data(filename, 10)  
 
-  parameters = LDA_algorithm(corpus, V, k)
+  parameters = LDA_algorithm_debug(corpus, V, k)
+
+  # parameters = LDA_algorithm(corpus, V, k)
 
   params = ["alpha", "beta", "phi", "gamma"]
 
