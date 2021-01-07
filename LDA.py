@@ -4,14 +4,16 @@ from scipy.special import gamma as gamma_function
 import scipy
 from DataLoader import DataLoader
 import time
+from datetime import datetime
+
 
 
 ## TODO
 # Fix the lower bound
 # Make the calculation of beta more efficient
 
-"""
-The algorithm in short:
+
+""" The algorithm in short:
 
 (The outher algorithm is EM)
 
@@ -23,9 +25,8 @@ The algorithm in short:
 
 2. (M-step) Maximize the lower bound w.r.t the priors
 
-  2.1 If the priors / lower bound haven't converged, return to step 1 and use the new priors
+  2.1 If the priors / lower bound haven't converged, return to step 1 and use the new priors """
 
-"""
 
 '''
 Variables:
@@ -77,6 +78,7 @@ def initialize_parameters_EM(V, k):
   # alpha = np.full(shape = k, fill_value = 50/k)
 
   beta = np.random.rand(k, V)
+  #beta = np.ones((k, V)) * (1/V)
   for i in range(k):
     # Normalizing
     beta[i,:] = beta[i,:] / sum(beta[i,:])
@@ -121,59 +123,10 @@ def calculate_gamma(phi, alpha, k):
   return gamma
 
 
-## Check for convergence in VI-algorithm
-def convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new, threshold = 1e-4):
-  # Implement convergence criteria
-
-  if np.any(np.abs(phi_old - phi_new) > threshold):
-    return False
-
-  if np.any(np.abs(gamma_old - gamma_new) > threshold):
-    return False
-
-  return True
-
-
-## VI-algorithm run during the E-step for every document m
-def VI_algorithm(k, document, alpha, beta, eta, debug = False):
-  N = len(document)
-
-  # Extended pseudocode from page 1005
-
-  # Step 1-2: Initalize parameters
-  phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha, N, k)
-
-  # Step 3-9: Run VI algorithm
-  it = 0
-  while True:
-    it += 1
-    
-    if debug:
-      print('\tVI Iteration:', it)
-    
-    # Calculate the new phis
-    phi_new = calculate_phi(gamma_old, beta, document, k)
-
-    # Calculate the new gammas
-    gamma_new = calculate_gamma(phi_new, alpha, k)
-  
-    # Calculate the new lambdas (not sure about this one)
-    #lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
-  
-    if convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new):
-      break
-    else:
-      phi_old = phi_new
-      gamma_old = gamma_new
-
-  return phi_new, gamma_new
-    
-
 ## To calculate beta in the M-step
-def calculate_beta(phi, corpus, V, k):
+def calculate_beta_prev_version(phi, corpus, V, k):
   # Use the analytical expression in equation 9 page 1006
   beta = np.zeros((k,V))
-
   for i in range(k):
     for j in range(V):
       s = 0
@@ -187,6 +140,62 @@ def calculate_beta(phi, corpus, V, k):
   # Normalize
   # beta =  beta / beta.sum(axis=1,keepdims=1)
   beta = beta/np.sum(beta, axis = 1)[:, np.newaxis]
+
+  return beta
+
+
+
+
+def calculate_beta_new_version(phi, corpus, V, k):
+  beta = np.zeros((k,V))
+  
+  for d in range(len(corpus)):
+    N = len(corpus[d])
+    for n in range(N):
+      j = corpus[d][n]
+      beta[:, j] += phi[d][n,:]
+
+  beta = beta/np.sum(beta, axis = 1)[:, np.newaxis]
+
+  return beta
+
+
+
+## To calculate beta in the M-step
+def calculate_beta_very_old(phis, corpus, V, k):
+  # Use the analytical expression in equation 9 page 1006
+  print("Beta computation")
+  M = len(corpus)
+
+  beta = []
+
+  for i in range(k):
+    # print(i)
+    beta.append([])
+    for j in range(V):
+      # print('\t',j)
+      beta[i].append(0)
+
+      #for d in range(M):
+
+        # Approach 1: Slightly slower
+        #beta[i][j] += np.sum(phis[d][np.array(corpus[d]) == j,i])
+
+        # Approach 2: Considerably slower
+        #N = len(corpus[d])
+        #for n in range(N):
+        #  help2 += phis[d][n,i] * 1 if j == corpus[d][n] else 0
+
+
+      # Approach 3: Quickest but still iterating over M
+      beta[i][j] = np.sum([np.sum(phis[d][np.array(corpus[d]) == j,i]) for d in range(M)])
+
+    # beta[i] = beta[i] / sum(beta[i]) # Normalizing
+
+  beta = np.array(beta)
+  for i in range(k): # Normalizing
+    beta[:,i] = beta[:,i]/sum(beta[:,i])
+  
 
   return beta
 
@@ -260,6 +269,19 @@ def calculate_alpha2(gamma, alphaOld, M, k, nr_max_iterations = 1000, tol = 10 *
   return alphaNew
 
 
+## Check for convergence in VI-algorithm
+def convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new, threshold = 1e-4):
+  # Implement convergence criteria
+
+  if np.any(np.abs(phi_old - phi_new) > threshold):
+    return False
+
+  if np.any(np.abs(gamma_old - gamma_new) > threshold):
+    return False
+
+  return True
+  
+
 ## Check for convergence in EM-algorithm
 def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = False, threshold = 1e-4):
   # Implement convergence criteria
@@ -268,20 +290,20 @@ def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = Fa
 
   if np.any(np.abs(alpha_old - alpha_new) > threshold):
     if debug:
-      print("alpha not converged:")
+      """ print("alpha not converged:")
       print("from")
       print(alpha_old)
       print("to")
-      print(alpha_new)
+      print(alpha_new) """
     return False
 
   if np.any(np.abs(beta_old - beta_new) > threshold):
     if debug:
-      print("beta not converged:")
+      """ print("beta not converged:")
       print("from")
       print(beta_old)
       print("to")
-      print(beta_new)
+      print(beta_new) """
     return False
 
   return True
@@ -292,9 +314,11 @@ def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
   L = 0
   # Parts on corpus level
   alpha_part_1 = np.log(gamma_function(np.sum(alpha))) - np.sum(np.log(gamma_function(alpha)))
+  row_1 = alpha_part_1
 
   for (d, document) in enumerate(corpus):
     N = len(document)
+
     gamma = gammas[d]
     phi = phis[d]
 
@@ -303,10 +327,8 @@ def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
     # The first row
     row_1 =  alpha_part_1 + np.sum((alpha-1)*(digamma(gamma) - digamma_gamma))
 
-
     # The second row
     row_2 = np.sum(phi * np.tile((digamma(gamma) - digamma_gamma), (N,1)))
-
 
     # The third row
     row_3 = 0
@@ -325,6 +347,12 @@ def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
     # print(np.sum(np.log(gamma_function(gamma))))
     # print( - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma)))
     row_4 = -np.log(gamma_function(np.sum(gamma))) + np.sum(np.log(gamma_function(gamma))) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma))
+    """ print('hello')
+    print(-np.log(gamma_function(np.sum(gamma))))
+    print(gamma_function(np.sum(gamma)))
+    print(np.sum(gamma))
+    print('gamma', gamma)
+    input('\n') """
 
     # print(np.sum(gamma))
     # raise ValueError('A very specific bad thing happened.')
@@ -341,6 +369,41 @@ def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
     L += sum(rows)
   
   return L
+
+
+## VI-algorithm run during the E-step for every document m
+def VI_algorithm(k, document, alpha, beta, eta, debug = False):
+  N = len(document)
+
+  # Extended pseudocode from page 1005
+
+  # Step 1-2: Initalize parameters
+  phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha, N, k)
+
+  # Step 3-9: Run VI algorithm
+  it = 0
+  while True:
+    it += 1
+    
+    if debug:
+      print('\tVI Iteration:', it)
+    
+    # Calculate the new phis
+    phi_new = calculate_phi(gamma_old, beta, document, k)
+
+    # Calculate the new gammas
+    gamma_new = calculate_gamma(phi_new, alpha, k)
+  
+    # Calculate the new lambdas (not sure about this one)
+    #lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
+  
+    if convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new):
+      break
+    else:
+      phi_old = phi_new
+      gamma_old = gamma_new
+
+  return phi_new, gamma_new
 
 
 ## LDA function
@@ -361,26 +424,53 @@ def LDA_algorithm(corpus, V, k):
     ##################
     # --- E-step --- #
     ##################
-    print("\tE-step")
+    print("\nE-step...")
+    start = time.time()
+
     phi, gamma = [], []
 
     for document in corpus:
       phi_d, gamma_d = VI_algorithm(k, document, alpha_old, beta_old, eta_old)
-      phi.append(phi_d), gamma.append(gamma_d)
+      phi.append(phi_d); gamma.append(gamma_d)
     
+    stop = time.time()
+    print('...completed in:', stop - start)
+
     ##################
     # --- M-step --- #
     ##################
-    print("\tM-step")
+    print("\nM-step...")
+    start = time.time()
 
-    beta_new = calculate_beta(phi, corpus, V, k)
+    betastart = time.time()
+    beta_new = calculate_beta_new_version(phi, corpus, V, k)
+    betaend = time.time()
+    print('\tCalc. beta new version completed in ', betaend - betastart)
 
+    beta_start = time.time()
+    beta_new_2 = calculate_beta_prev_version(phi, corpus, V, k)
+    beta_end = time.time()
+    print('\tCalc. beta previous version completed in ', beta_end - beta_start)
+
+    print('\nEQUAL?')
+    print(np.array_equal(beta_new, beta_new_2))
+    print('\n', beta_new[0], '\n', sum(beta_new[0]))
+    print('\n', beta_new_2[0], '\n', sum(beta_new_2[0]))
+    input()
+
+    alphastart = time.time()
     alpha_new = calculate_alpha(gamma, alpha_old, M, k)
+    alphaend = time.time()
+
+    print('\tCalc. alpha completed in ', alphaend - alphastart)
+
+    stop = time.time()
+    print('...completed in:', stop - start)
 
     ########################
     # --- Convergence? --- #
     ########################
-    # print(lower_bound(alpha_new, beta_new, phi, gamma, k, V, corpus))
+    #print(lower_bound(alpha_new, beta_new, phi, gamma, k, V, corpus))
     if convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = True):
       print("Convergence after", it, "iterations!")
       break
@@ -388,18 +478,21 @@ def LDA_algorithm(corpus, V, k):
       alpha_old = alpha_new
       beta_old = beta_new
     
-  
   return [alpha_new, beta_new, phi, gamma]
 
 
+def print_top_words_for_all_topics(beta, top_x, k):
+  '''This function somehow disappeared, will rewrite it later /E'''
+  pass
+
 ## Main function
 def main():
-  
-  k = 2
+
+  k = 10
 
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 5)
+  corpus, V = load_data(filename, 100)
 
   parameters = LDA_algorithm(corpus, V, k)
 
