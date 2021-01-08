@@ -142,7 +142,8 @@ def calculate_phi(gamma, beta, document, k):
 
   # According to step 6
   phi = beta[:, document[:]].T * np.tile(np.exp(digamma(gamma)),(N,1))
-
+  #phi = beta[:, document[:]].T * np.exp(digamma(gamma))  # this might take less memory
+  
   # Normalize phi since it's a probability (must sum up to 1)
   phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
 
@@ -812,12 +813,12 @@ def print_top_words_for_all_topics(vocab_file, beta, top_x, k):
 
 ## Main function
 def main():
-  k = 100
+  k = 3
 
   vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 1000)
+  corpus, V = load_data(filename, 10)
 
   parameters = LDA_algorithm(corpus, V, k)
 
@@ -828,7 +829,7 @@ def main():
   #   print(parameters[i])
 
   beta = parameters[1]
-  # print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k)
+  print_top_words_for_all_topics(vocab_file, beta, top_x=30, k=k)
 
 
 if __name__ == "__main__":

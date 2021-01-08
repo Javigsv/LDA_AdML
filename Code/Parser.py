@@ -29,23 +29,37 @@ class ReutersCorpusPreprocessor():
 
 
     def process_word_1(self, word):
-        '''Function for processing an indivudual words'''
-        contains_number = re.search(".*\d.*", word)
+        '''Function for processing an indivudual word. Can be used after filtering out certain words'''
         
-        if contains_number:     # Handle numbers. Note we treat all numbers (years, prices, large numbers, small numbers) the same
+        # Handle numbers. Right now we treat all numbers (years, prices, large numbers, small numbers) the same, but this could be changed
+        contains_number = re.search(".*\d.*", word)
+        if contains_number:     
             processed_word = '__NuMBeR'
             return processed_word
+
         processed_word = word.lower()   # For now we just .lower() non-numbers. We could add a Lemmatizer or Stemmer here if we want to
 
         return processed_word
 
 
     def word_filter_1(self, word):
-        '''Function for filtering out certain words (e.g. stopwords)'''
+        '''Function for filtering out certain words (e.g. stopwords). Note that this function only returns True/False. In other words it only chooses which words to discard and does no preprocessing of its own'''
 
-        # Punctuation filtering could be added here if need be
-        stopWords = set(stopwords.words('english'))     # OBS: Now we use 150+ stopwords, use slice to get the first 50 [0:50]
+        # Lowercase for comparison
+        word = word.lower()
 
+        # Catch words that are 100% non-alphanumerical
+        word = ' ' + word + ' ' # this probably isn't the optimal way to do it, but works for a single run
+        fully_non_alpha_num = re.search(" \W+ ", word)
+        if fully_non_alpha_num:
+            return False
+        word = word[1:-1]
+
+        # Catch Stopwords
+        stopWords = set(stopwords.words('english'))     # OBS: Now we use 150+ stopwords, use slice to get the first 50 [0:50]    
+        stopWords.add('reuter'); stopWords.add('reuters'); stopWords.add("'s"); stopWords.add("'ve")
+        
+        #print('-' + word + '-')
         return word not in stopWords
 
 
@@ -99,6 +113,7 @@ class ReutersCorpusPreprocessor():
                                             if self.word_filter_1(word)]              
 
                 if not testing: # if we are creating the vectorized file and vocabulary
+                    #input(' '.join(final_word_list))
                     self.vectorize_document(final_word_list)
                     self.document_counter += 1
                     
@@ -127,14 +142,15 @@ class ReutersCorpusPreprocessor():
                         input(final_word_list)
                     
                     self.document_counter += 1
-
-        print(self.document_counter, ' documents have been processed')
-
+        if not testing:
+            print(self.document_counter, ' documents have been processed')
+        if testing:
+            print(self.document_counter, ' documents have been tested')
 
     def parse_reuters_21578_corpus(self, corpus_file, word_index_vocabulary_file, testing = False): # rename function?, creating / testing
         '''Used to loop through all sgml_files '''
         my_path = os.path.abspath(os.path.dirname(__file__))
-        datapath = '../Reuters 21578 data'
+        datapath = '../Reuters_data'
         first_datafile = '/reut2-000.sgm'
 
         if not testing:
@@ -185,6 +201,8 @@ class ReutersCorpusPreprocessor():
     def test_vectorization(self, corpus_file, word_index_vocabulary_file):
         '''Test the vocabulary and the vectorized file of the part of the corpus that was vectorized'''
 
+        self.document_counter = 0
+
         # Set Index to Word Vocab
         self.index_word_vocab =  {}
         with open(word_index_vocabulary_file + '.csv', mode='r') as csv_file:
@@ -220,10 +238,10 @@ def main():
     corpus_file = 'Reuters_Corpus_Vectorized'; word_index_vocabulary_file = 'Reuters_Corpus_Vocabulary'
 
     cp = ReutersCorpusPreprocessor()
-    #cp.parse_reuters_21578_corpus(corpus_file, word_index_vocabulary_file)
+    cp.parse_reuters_21578_corpus(corpus_file, word_index_vocabulary_file)
     cp.test_vectorization(corpus_file, word_index_vocabulary_file)
     
-    #print(cp.document_counter)
+    print(cp.document_counter)
 
 if __name__ == '__main__':
     main()
