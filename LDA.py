@@ -4,7 +4,7 @@ from scipy.special import gamma as gamma_function
 from scipy.special import loggamma as loggamma
 import scipy
 from DataLoader import DataLoader
-import time
+import time, csv
 from datetime import datetime
 
 
@@ -259,7 +259,7 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
     g = M * (digamma(np.sum(alpha)) - digamma(alpha)) + log_p_mean
 
     # Calculate the diagonal of the Hessian
-    h = - M * trigamma(alpha)
+    h = M * trigamma(alpha)
 
     # Calculate the constant component of the Hessian
     z = M * trigamma(np.sum(alpha))
@@ -268,7 +268,7 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
     b = np.sum(g/h) / (1/z + np.sum(1/h))
 
     # Update equation for alpha
-    alpha = alpha - (g - b) / h
+    alpha = alpha + (g - b) / h
     # log_alpha = np.log(alpha) - (g - b) / h
     # alpha = np.exp(log_alpha)
 
@@ -549,7 +549,6 @@ def VI_algorithm_new2(k, document, phi_old, gamma_old, lambda_old, alpha, beta, 
   return phi_new, gamma_new
 
 
-
 ## LDA function with debug prints
 def LDA_algorithm_debug(corpus, V, k):
   alpha_old, beta_old, eta_old = initialize_parameters_EM(V, k)
@@ -666,12 +665,12 @@ def LDA_algorithm(corpus, V, k):
     # print(alpha_old)
     it += 1
 
-    print("EM-iteration:", it)
+    print("\nEM-iteration:", it)
 
     ##################
     # --- E-step --- #
     ##################
-    print("\nE-step...")
+    print("E-step...")
     start = time.time()
     phi2_new, gamma2_new = [], []
 
@@ -685,7 +684,7 @@ def LDA_algorithm(corpus, V, k):
     ##################
     # --- M-step --- #
     ##################
-    print("\nM-step...")
+    print("M-step...")
     start = time.time()
     beta_new = calculate_beta_new_version(phi2_old, corpus, V, k)
 
@@ -696,7 +695,7 @@ def LDA_algorithm(corpus, V, k):
     ########################
     # --- Convergence? --- #
     ########################
-    print(lower_bound(alpha_new, beta_new, phi2_old, gamma2_old, k, V, corpus))
+    #print(lower_bound(alpha_new, beta_new, phi2_old, gamma2_old, k, V, corpus))
     if convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = True):
       print("Convergence after", it, "iterations!")
       break
@@ -707,18 +706,35 @@ def LDA_algorithm(corpus, V, k):
   return [alpha_new, beta_new, phi2_old, gamma2_old]
 
 
-def print_top_words_for_all_topics(beta, top_x, k):
-  '''This function somehow disappeared, will rewrite it later /E'''
-  pass
+def print_top_words_for_all_topics(vocab_file, beta, top_x, k):
+  '''Used for getting the top_x highest probability words for each topic'''
+
+  # Read index-word vocabulary from file
+  index_word_vocab = {}
+  with open(vocab_file, mode='r') as csv_file:
+            reader = csv.reader(csv_file, delimiter=',')
+            for line in reader:
+              if line:
+                index_word_vocab[int(line[1])] = line[0]
+                
+  # Get most probable words for each topic
+  for topic in range(k):
+    print('The ', top_x,' most probable words for topic with index: ', topic)
+    word_distribution = beta[topic,:]
+    indices = list(np.argsort(word_distribution))[-top_x:]
+    for word_index in reversed(indices):
+      word = index_word_vocab[word_index + 1] # + 1 since the dictionary starts at 1 and the word_indices in LDA starts at 0
+      print(word)    
+
 
 ## Main function
 def main():
+  k = 8
 
-  k = 100
-
+  vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 1000)  
+  corpus, V = load_data(filename, 100)
 
   # parameters = LDA_algorithm_debug(corpus, V, k)
 
@@ -730,6 +746,8 @@ def main():
     print(param + ":")
     print(parameters[i])
 
+  beta = parameters[1]
+  print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k)
 
 if __name__ == "__main__":
   main()
