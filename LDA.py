@@ -118,7 +118,8 @@ def calculate_phi(gamma, beta, document, k):
   phi = []
   for n in range(N):
     # According to step 6
-    phi_n = beta[:, document[n]] * np.exp(digamma(gamma) - digamma(np.sum(gamma)))
+    # phi_n = beta[:, document[n]] * np.exp(digamma(gamma) - digamma(np.sum(gamma)))
+    phi_n = beta[:, document[n]] * np.exp(digamma(gamma))
 
     # Normalize phi since it's a probability (must sum up to 1)
     phi_n = phi_n / np.sum(phi_n)
@@ -253,7 +254,7 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
     # Calculate the observed efficient statistic
     # Here we are using that the expected sufficient statistics are equal to the observed sufficient statistics
     # for distributions in the exponential family when the gradient is zero
-    log_p_mean = np.sum((digamma(gamma)-np.tile(digamma(np.sum(gamma,axis=1)),(k,1)).T),axis=0)
+    # log_p_mean = np.sum((digamma(gamma)-np.tile(digamma(np.sum(gamma,axis=1)),(k,1)).T),axis=0)
 
     g = M * (digamma(np.sum(alpha)) - digamma(alpha)) + log_p_mean
 
@@ -264,16 +265,21 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
     z = M * trigamma(np.sum(alpha))
 
     # Calculate the constant
-    b = np.sum(g/h) / (1/z - np.sum(1/h))
+    b = np.sum(g/h) / (1/z + np.sum(1/h))
 
     # Update equation for alpha
     alpha = alpha - (g - b) / h
+    # log_alpha = np.log(alpha) - (g - b) / h
+    # alpha = np.exp(log_alpha)
 
+    # if np.all(np.abs(g) < tolerance):
     if np.linalg.norm(alpha-alpha_old) < tolerance:
       break
 
+  if np.any(alpha < 0):
+    print("Alpha is negative!")
 
-  return alpha
+  return np.abs(alpha)
 
 
 ## Copied straight of [Not used atm]
@@ -307,6 +313,31 @@ def calculate_alpha2(gamma, alphaOld, M, k, nr_max_iterations = 1000, tol = 10 *
   # raise ValueError('A very specific bad thing happened.')
   return alphaNew
 
+
+## Other copied version
+def est_alpha(alpha,gamma,M,k,nr_max_iters = 1000,tol = 10**-4.0):
+  gamma = np.array(gamma)
+  for it in range(nr_max_iters):
+    alpha_old = alpha
+    
+    #  Calculate gradient 
+    g = M*(digamma(np.sum(alpha))-digamma(alpha)) + np.sum(digamma(gamma)-np.tile(digamma(np.sum(gamma,axis=1)),(k,1)).T,axis=0)
+    #  Calculate Hessian diagonal component
+    h = -M*polygamma(1,alpha) 
+    #  Calculate Hessian constant component
+    z = M*polygamma(1,np.sum(alpha))
+    #  Calculate constant
+    c = np.sum(g/h)/(z**(-1.0)+np.sum(h**(-1.0)))
+
+    #  Update alpha
+    alpha = alpha - (g-c)/h
+    
+    #  Check convergence
+    if np.linalg.norm(alpha-alpha_old) < tol:
+      break
+  print("est")
+  print(alpha)
+  return alpha
 
 ## Check for convergence in VI-algorithm
 def convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new, threshold = 1e-4):
@@ -659,6 +690,7 @@ def LDA_algorithm(corpus, V, k):
     beta_new = calculate_beta_new_version(phi2_old, corpus, V, k)
 
     alpha_new = calculate_alpha(gamma2_old, alpha_old, M, k)
+    # est_alpha(alpha_old, gamma2_old, M, k)
     stop = time.time()
     print('...completed in:', stop - start)
     ########################
@@ -686,7 +718,7 @@ def main():
 
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 100)  
+  corpus, V = load_data(filename, 1000)  
 
   # parameters = LDA_algorithm_debug(corpus, V, k)
 
