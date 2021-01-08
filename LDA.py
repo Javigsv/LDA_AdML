@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.special import digamma, polygamma
 from scipy.special import gamma as gamma_function
+from scipy.special import loggamma as loggamma
 import scipy
 from DataLoader import DataLoader
 import time
@@ -367,7 +368,8 @@ def convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = Fa
 def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
   L = 0
   # Parts on corpus level
-  alpha_part_1 = np.log(gamma_function(np.sum(alpha))) - np.sum(np.log(gamma_function(alpha)))
+  alpha_part_1 = loggamma(np.sum(alpha)) - np.sum(loggamma(alpha))
+  
   row_1 = alpha_part_1
 
   for (d, document) in enumerate(corpus):
@@ -385,40 +387,31 @@ def lower_bound(alpha, beta, phis, gammas, k, V, corpus):
     row_2 = np.sum(phi * np.tile((digamma(gamma) - digamma_gamma), (N,1)))
 
     # The third row
+    # row_3 = 0
+    # for n in range(N):
+    #   for j in range(V):
+    #     for i in range(k):
+    #       if document[n] == j:
+    #         row_3 += phi[n,i]*np.log(max(beta[i,j], 1e-90))
+    
     row_3 = 0
     for n in range(N):
       for j in range(V):
-        for i in range(k):
-          if document[n] == j:
-            row_3 += phi[n,i]*np.log(beta[i,j])
+        if document[n] == j:
+          row_3 += np.sum(phi[n,:]*np.log(np.maximum(beta[:,j], 1e-90)))
 
-
+    
     # The fourth row
-    # print("Test")
-    # print(gamma)
-    # print(-np.log(gamma_function(np.sum(gamma))))
-    # print(gamma_function(np.sum(gamma)))
-    # print(np.sum(np.log(gamma_function(gamma))))
-    # print( - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma)))
-    row_4 = -np.log(gamma_function(np.sum(gamma))) + np.sum(np.log(gamma_function(gamma))) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma))
-    """ print('hello')
-    print(-np.log(gamma_function(np.sum(gamma))))
-    print(gamma_function(np.sum(gamma)))
-    print(np.sum(gamma))
-    print('gamma', gamma)
-    input('\n') """
-
-    # print(np.sum(gamma))
-    # raise ValueError('A very specific bad thing happened.')
+    row_4 = -loggamma(np.sum(gamma)) + np.sum(loggamma(gamma)) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma))
 
     # The fifth row
-    row_5 = np.sum(phi * np.log(phi))
+    row_5 = np.sum(np.log(phi ** phi))
 
     # Printing values of rows
     rows = [row_1, row_2, row_3, row_4, row_5]
-    print("\nDocument", d+1, ":")
-    for (i,row) in enumerate(rows):
-      print("Row", i+1, "::", row)
+    # print("\nDocument", d+1, ":")
+    # for (i,row) in enumerate(rows):
+    #   print("Row", i+1, "::", row)
 
     L += sum(rows)
   
@@ -648,7 +641,7 @@ def LDA_algorithm(corpus, V, k):
     # --- E-step --- #
     ##################
     print("\nE-step...")
-
+    start = time.time()
     phi2_new, gamma2_new = [], []
 
     for (d,document) in enumerate(corpus):
@@ -656,21 +649,22 @@ def LDA_algorithm(corpus, V, k):
       phi2_new.append(phi_d); gamma2_new.append(gamma_d)
     
     phi2_old, gamma2_old = phi2_new, gamma2_new
-
-
+    stop = time.time()
+    print('...completed in:', stop - start)
     ##################
     # --- M-step --- #
     ##################
     print("\nM-step...")
-
+    start = time.time()
     beta_new = calculate_beta_new_version(phi2_old, corpus, V, k)
 
     alpha_new = calculate_alpha(gamma2_old, alpha_old, M, k)
-
+    stop = time.time()
+    print('...completed in:', stop - start)
     ########################
     # --- Convergence? --- #
     ########################
-    #print(lower_bound(alpha_new, beta_new, phi, gamma, k, V, corpus))
+    print(lower_bound(alpha_new, beta_new, phi2_old, gamma2_old, k, V, corpus))
     if convergence_criteria_EM(alpha_old, beta_old, alpha_new, beta_new, debug = True):
       print("Convergence after", it, "iterations!")
       break
@@ -688,15 +682,15 @@ def print_top_words_for_all_topics(beta, top_x, k):
 ## Main function
 def main():
 
-  k = 3
+  k = 100
 
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 10)  
+  corpus, V = load_data(filename, 100)  
 
-  parameters = LDA_algorithm_debug(corpus, V, k)
+  # parameters = LDA_algorithm_debug(corpus, V, k)
 
-  # parameters = LDA_algorithm(corpus, V, k)
+  parameters = LDA_algorithm(corpus, V, k)
 
   params = ["alpha", "beta", "phi", "gamma"]
 
