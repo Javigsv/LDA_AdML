@@ -813,12 +813,13 @@ def print_top_words_for_all_topics(vocab_file, beta, top_x, k):
 
 ## Main function
 def main():
-  k = 3
+  k = 50
 
   vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
   filename = './Code/Reuters_Corpus_Vectorized.csv'
 
-  corpus, V = load_data(filename, 10)
+  corpus, V = load_data(filename, 10**6)
+  print(len(corpus))
 
   parameters = LDA_algorithm(corpus, V, k)
 

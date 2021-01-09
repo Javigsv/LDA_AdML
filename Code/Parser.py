@@ -96,13 +96,18 @@ class ReutersCorpusPreprocessor():
         with open(abs_filepath) as filehandle:
             soup = bs4(filehandle, 'lxml')
 
+            self.flag = False   # temporary
+
             for article in soup.find_all(modApte_training_samples_screened):
             
                 #print(article.prettify(), '\n')
                 text_tag = article.find('text')     # OBS: must use .find() here since the tag's name is "text"
                 #title = text_tag.title.string      # should title be included or only bodytext?
+                #print(title)
                 body = text_tag.find_all(text=True, recursive=False)    # this is apparently how you do it with bs4. It returns a list with "\n" for tags and a non-empty string for the actual text
+                #print(body)
                 body_string = ' '.join(body)
+                #input(body_string)
                 body_string = body_string.replace('/',' ')
                 sentences = [nltk.word_tokenize(t) for t in nltk.sent_tokenize(body_string)]
                 
@@ -111,6 +116,9 @@ class ReutersCorpusPreprocessor():
                                     for sentence in sentences 
                                         for word in sentence
                                             if self.word_filter_1(word)]              
+
+                if len(final_word_list) == 0:
+                    break
 
                 if not testing: # if we are creating the vectorized file and vocabulary
                     #input(' '.join(final_word_list))
@@ -123,7 +131,7 @@ class ReutersCorpusPreprocessor():
                     #final_word_list.append('electroPOPO')
                     #line_in_words.append('olga')
                     
-                    documents_are_equal = all((line_in_words[i] == final_word_list[i] for i in range(len(final_word_list))))
+                    documents_are_equal = all((line_in_words[i] == final_word_list[i] for i in range(len(final_word_list)))) and len(line_in_words) == len(final_word_list) # second clause to catch empty documents
 
                     """ print('\n')
                     
@@ -136,11 +144,27 @@ class ReutersCorpusPreprocessor():
                     print(line_in_words)
                     input() """
 
-                    if not documents_are_equal:
-                        print('WAIT A MINUTE')
-                        print(line_in_words)
-                        input(final_word_list)
+                    if documents_are_equal:
+                        pass
+                    """ print(line_in_words)
+                    print(final_word_list)
+                    print(documents_are_equal)
+                    input('\n') """
                     
+
+                    if not documents_are_equal:
+                        if not self.flag:
+                            print(old_final_word_list)
+                            print(old_line_in_words)
+                            self.flag = True
+                        print('WAIT A MINUTE')
+                        print(final_word_list)
+                        input(line_in_words)
+                    
+                    # temporary
+                    old_final_word_list = final_word_list
+                    old_line_in_words = line_in_words
+
                     self.document_counter += 1
         if not testing:
             print(self.document_counter, ' documents have been processed')
@@ -238,7 +262,7 @@ def main():
     corpus_file = 'Reuters_Corpus_Vectorized'; word_index_vocabulary_file = 'Reuters_Corpus_Vocabulary'
 
     cp = ReutersCorpusPreprocessor()
-    cp.parse_reuters_21578_corpus(corpus_file, word_index_vocabulary_file)
+    #cp.parse_reuters_21578_corpus(corpus_file, word_index_vocabulary_file)
     cp.test_vectorization(corpus_file, word_index_vocabulary_file)
     
     print(cp.document_counter)
