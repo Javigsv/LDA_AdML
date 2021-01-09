@@ -51,7 +51,7 @@ data: M x N   ----    List of M lists. Each sublist contains N elements accordin
 '''
 
 ## Load data
-def load_data(filename, num_documents):
+def load_data(filename, num_documents = 10**6):
 
   data_loader = DataLoader(filename)
   data, V = data_loader.load(num_documents)
@@ -403,8 +403,8 @@ def print_parameters(parameters, printing = True):
 ## Main function
 def main():
   # Initial parameters
-  k = 50              # Number of topics
-  num_documents = 100
+  k = 100              # Number of topics
+  num_documents = 10**6
 
   # File directories
   vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
