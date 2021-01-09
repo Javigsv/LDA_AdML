@@ -29,23 +29,37 @@ class ReutersCorpusPreprocessor():
 
 
     def process_word_1(self, word):
-        '''Function for processing an indivudual words'''
-        contains_number = re.search(".*\d.*", word)
+        '''Function for processing an indivudual word. Can be used after filtering out certain words'''
         
-        if contains_number:     # Handle numbers. Note we treat all numbers (years, prices, large numbers, small numbers) the same
+        # Handle numbers. Right now we treat all numbers (years, prices, large numbers, small numbers) the same, but this could be changed
+        contains_number = re.search(".*\d.*", word)
+        if contains_number:     
             processed_word = '__NuMBeR'
             return processed_word
+
         processed_word = word.lower()   # For now we just .lower() non-numbers. We could add a Lemmatizer or Stemmer here if we want to
 
         return processed_word
 
 
     def word_filter_1(self, word):
-        '''Function for filtering out certain words (e.g. stopwords)'''
+        '''Function for filtering out certain words (e.g. stopwords). Note that this function only returns True/False. In other words it only chooses which words to discard and does no preprocessing of its own'''
 
-        # Punctuation filtering could be added here if need be
-        stopWords = set(stopwords.words('english'))     # OBS: Now we use 150+ stopwords, use slice to get the first 50 [0:50]
+        # Lowercase for comparison
+        word = word.lower()
 
+        # Catch words that are 100% non-alphanumerical
+        word = ' ' + word + ' ' # this probably isn't the optimal way to do it, but works for a single run
+        fully_non_alpha_num = re.search(" \W+ ", word)
+        if fully_non_alpha_num:
+            return False
+        word = word[1:-1]
+
+        # Catch Stopwords
+        stopWords = set(stopwords.words('english'))     # OBS: Now we use 150+ stopwords, use slice to get the first 50 [0:50]    
+        stopWords.add('reuter'); stopWords.add('reuters'); stopWords.add("'s"); stopWords.add("'ve")
+        
+        #print('-' + word + '-')
         return word not in stopWords
 
 
@@ -82,13 +96,18 @@ class ReutersCorpusPreprocessor():
         with open(abs_filepath) as filehandle:
             soup = bs4(filehandle, 'lxml')
 
+            self.flag = False   # temporary
+
             for article in soup.find_all(modApte_training_samples_screened):
             
                 #print(article.prettify(), '\n')
                 text_tag = article.find('text')     # OBS: must use .find() here since the tag's name is "text"
                 #title = text_tag.title.string      # should title be included or only bodytext?
+                #print(title)
                 body = text_tag.find_all(text=True, recursive=False)    # this is apparently how you do it with bs4. It returns a list with "\n" for tags and a non-empty string for the actual text
+                #print(body)
                 body_string = ' '.join(body)
+                #input(body_string)
                 body_string = body_string.replace('/',' ')
                 sentences = [nltk.word_tokenize(t) for t in nltk.sent_tokenize(body_string)]
                 
@@ -98,7 +117,11 @@ class ReutersCorpusPreprocessor():
                                         for word in sentence
                                             if self.word_filter_1(word)]              
 
+                if len(final_word_list) == 0:
+                    break
+
                 if not testing: # if we are creating the vectorized file and vocabulary
+                    #input(' '.join(final_word_list))
                     self.vectorize_document(final_word_list)
                     self.document_counter += 1
                     
@@ -108,7 +131,7 @@ class ReutersCorpusPreprocessor():
                     #final_word_list.append('electroPOPO')
                     #line_in_words.append('olga')
                     
-                    documents_are_equal = all((line_in_words[i] == final_word_list[i] for i in range(len(final_word_list))))
+                    documents_are_equal = all((line_in_words[i] == final_word_list[i] for i in range(len(final_word_list)))) and len(line_in_words) == len(final_word_list) # second clause to catch empty documents
 
                     """ print('\n')
                     
@@ -121,20 +144,37 @@ class ReutersCorpusPreprocessor():
                     print(line_in_words)
                     input() """
 
-                    if not documents_are_equal:
-                        print('WAIT A MINUTE')
-                        print(line_in_words)
-                        input(final_word_list)
+                    if documents_are_equal:
+                        pass
+                    """ print(line_in_words)
+                    print(final_word_list)
+                    print(documents_are_equal)
+                    input('\n') """
                     
+
+                    if not documents_are_equal:
+                        if not self.flag:
+                            print(old_final_word_list)
+                            print(old_line_in_words)
+                            self.flag = True
+                        print('WAIT A MINUTE')
+                        print(final_word_list)
+                        input(line_in_words)
+                    
+                    # temporary
+                    old_final_word_list = final_word_list
+                    old_line_in_words = line_in_words
+
                     self.document_counter += 1
-
-        print(self.document_counter, ' documents have been processed')
-
+        if not testing:
+            print(self.document_counter, ' documents have been processed')
+        if testing:
+            print(self.document_counter, ' documents have been tested')
 
     def parse_reuters_21578_corpus(self, corpus_file, word_index_vocabulary_file, testing = False): # rename function?, creating / testing
         '''Used to loop through all sgml_files '''
         my_path = os.path.abspath(os.path.dirname(__file__))
-        datapath = '../Reuters 21578 data'
+        datapath = '../Reuters_data'
         first_datafile = '/reut2-000.sgm'
 
         if not testing:
@@ -185,6 +225,8 @@ class ReutersCorpusPreprocessor():
     def test_vectorization(self, corpus_file, word_index_vocabulary_file):
         '''Test the vocabulary and the vectorized file of the part of the corpus that was vectorized'''
 
+        self.document_counter = 0
+
         # Set Index to Word Vocab
         self.index_word_vocab =  {}
         with open(word_index_vocabulary_file + '.csv', mode='r') as csv_file:
@@ -223,7 +265,7 @@ def main():
     #cp.parse_reuters_21578_corpus(corpus_file, word_index_vocabulary_file)
     cp.test_vectorization(corpus_file, word_index_vocabulary_file)
     
-    #print(cp.document_counter)
+    print(cp.document_counter)
 
 if __name__ == '__main__':
     main()
