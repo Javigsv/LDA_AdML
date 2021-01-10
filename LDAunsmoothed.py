@@ -6,6 +6,7 @@ import scipy
 from DataLoader import DataLoader
 import time, csv
 from datetime import datetime
+import EachMovieParser.Eachmovie_parser as eachmovie
 
 
 
@@ -500,8 +501,8 @@ def predictive_perplexity(beta, gamma, test_removed):
   return perplexity
 
 
-## Main function
-def main():
+## Main function reuters
+def main_Reuters():
   # Initial parameters
   k = 50              # Number of topics
   num_documents = 2000 #10**6
@@ -539,5 +540,39 @@ def main():
   print()
 
 
-if __name__ == "__main__":
-  main()
+## Main function eachmovie
+def main_each_movie():
+  # Initial parameters
+  k = 50              # Number of topics
+
+  # File directories
+  filename = "filtered_corpus.txt"
+
+  # Load data
+  training_data, test_data, removed_movies, V = eachmovie.dataloaderEachmovie(filename)
+  print(training_data[0][0])
+  # Run the algorithm
+  parameters = LDA_algorithm(training_data, V, k)
+
+  
+
+  # Print the parameters
+  print_parameters(parameters, False)
+
+  # Print most likely topics and words
+  # alpha = parameters[0]
+  # num_topics = 5 # The number of topics that should be printed
+  # topic_indices = print_likely_topics(alpha, num_topics)
+  # beta = parameters[1]
+  # print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k, indices = topic_indices)
+
+  # phi = parameters[2]
+  # gamma = parameters[3]
+  # print(len(corpus), len(test))
+  # print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
+
+  # print()
+
+
+
+main_each_movie()
