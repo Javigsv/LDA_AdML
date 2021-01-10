@@ -813,7 +813,7 @@ def print_top_words_for_all_topics(vocab_file, beta, top_x, k):
 
 ## Main function
 def main():
-  k = 50
+  k = 100
 
   vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
   filename = './Code/Reuters_Corpus_Vectorized.csv'
