@@ -201,38 +201,29 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
 def lower_bound_single(alpha, beta, phi, gamma, alpha_sum, k, document, debug = False):
   # Helpful things
   digamma_gamma_sum = digamma(np.sum(gamma))
-  if debug:
-    print(digamma_gamma_sum)
+
   N = len(document)
 
   # Calculating the lower bound according to page 1020
 
   # First row
   likelihood = alpha_sum # First part of first row
-  if debug:
-    print(likelihood)
+
   likelihood += np.sum((alpha-1)*(digamma(gamma) - digamma_gamma_sum)) # Second part of first row
-  if debug:
-    print(likelihood)
+
   # Second row
   likelihood += np.sum(phi * np.tile((digamma(gamma) - digamma_gamma_sum), (N,1)))
-  if debug:
-    print(likelihood)
+
   # Third row
   for n in range(N):
     likelihood += np.sum(phi[n,:]*np.log(np.maximum(beta[:,document[n]], 1e-90)))
-  if debug:
-    print(likelihood)
+
   # The fourth row
   likelihood += -loggamma(np.sum(gamma)) + np.sum(loggamma(gamma)) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma_sum))
-  if debug:
-    print(likelihood)
+
   # The fifth row
   likelihood += np.sum(np.log(phi ** phi))
-  if debug:
-    print(likelihood)
-  if debug:
-    a = 1 / 0
+
   return likelihood
 
 
