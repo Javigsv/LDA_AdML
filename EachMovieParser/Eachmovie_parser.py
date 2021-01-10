@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import random
 
-def eachmovie_parser(filename):
+def eachmovie_parser(filename, training_size, test_size):
     
     datafile = './' + filename
     movieset = pd.read_csv(datafile,  delimiter=" ",header=None, dtype= int)
@@ -12,17 +12,18 @@ def eachmovie_parser(filename):
     rating_column = movieset_array[:,2]
     unique_users = np.unique(user_column)#(X[:,1]) #Finds all the unique user IDs
     unique_movies = np.unique(movie_column)#(X[:,0]) #All the unique movies
+    #--------------------FIXED GAPS IN MOVIE INDEXES---------------------------------------------------
     index_dict = {}
     for i in range(len(unique_movies)):
         index_dict[str(unique_movies[i])] = i
     for i in range(len(movie_column)):
         temporary = index_dict[str(movie_column[i])]
         movie_column[i] = temporary
-    #print("Number of changed indexes was: " + str(change_count))
+    #------------------------------------------------------------------------------------------------
 
     X = np.c_[movie_column,user_column]
     X = np.c_[X,rating_column]
-    V = len(unique_movies)
+    
     movie_vocabulary = {}
     users = {}
     tempcorpus =[]
@@ -64,9 +65,16 @@ def eachmovie_parser(filename):
 
     print("Number of users with less than 100 positive reviews: " + str(popped_elements))
     print("Number of users with more than 100 positive reviews: " + str(61265-popped_elements))
-    for user in range(len(tempcorpus)):
+    for user in range(training_size + test_size):
         corpus.append([])
         corpus[user] = tempcorpus[user][0]
+    #---------------Count unique movies ----------------------------
+    Vocabulary = []
+    for i in range(len(corpus)):
+        for j in range(len(corpus[i])):
+            Vocabulary.append(corpus[i][j])
+    V = len(np.unique(Vocabulary))
+    #---------------Count unique movies ----------------------------
 
     return tempcorpus, corpus, users, V
 
@@ -76,12 +84,12 @@ def print_corpus(corpus):
             print("User " + str(i) + ": movie " + str(corpus[i][0][j]))
             print("User " + str(i) + ": rating " + str(corpus[i][1][j]))
     
-def divide_corpus(corpus): #Code to divide corpus into training and testing. Testing-data should have one unobserved movie.
+def divide_corpus(corpus, training_size, test_size): #Code to divide corpus into training and testing. Testing-data should have one unobserved movie.
     random.seed(1337)
     test_data = []
     training_data = corpus
     removed_movies = []
-    for i in range(390): #Separates corpus into observed and unobserved sets.
+    for i in range(test_size): #Separates corpus into observed and unobserved sets.
         idx = random.randint(0,len(training_data)-1-i)
         temp = training_data.pop(idx)
         test_data.append(temp)
@@ -100,11 +108,11 @@ def write_corpus(corpus):
             f1.write(str(corpus[i][0][j])+ " " + str(i+1) +" "+ str(corpus[i][1][j]) + "\n")
     f1.close()
 
-def dataloaderEachmovie(filename):
+def dataloaderEachmovie(filename, training_size,test_size):
     
-    filtered_corpus, corpus, users, V = eachmovie_parser(filename) # Corpus is an array:[([movies 1 to N],[ratings 1 to N]),....]. corpus[i] gives you the ith user-vector
+    filtered_corpus, corpus, users, V = eachmovie_parser(filename,training_size, test_size) # Corpus is an array:[([movies 1 to N],[ratings 1 to N]),....]. corpus[i] gives you the ith user-vector
     #write_corpus(filtered_corpus)
-    training_data, test_data, removed_movies = divide_corpus(corpus) #training_data is like corpus but with 390 removes user-arrays
+    training_data, test_data, removed_movies = divide_corpus(corpus,training_size,test_size) #training_data is like corpus but with 390 removes user-arrays
                                                                #test_data contains 390 user-array, where one movie in each array have been replaced with np.NaN
     return training_data, test_data, removed_movies, V
 
@@ -112,4 +120,6 @@ def dataloaderEachmovie(filename):
 
 if __name__ == '__main__':
     filename =  "filtered_corpus.txt"
-    dataloaderEachmovie(filename)
+    training_size = 1000
+    test_size = 200
+    dataloaderEachmovie(filename, training_size, test_size)
