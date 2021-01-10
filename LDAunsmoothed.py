@@ -83,7 +83,7 @@ def initialize_parameters_EM(V, k):
   for i in range(k):
     # Normalizing
     beta[i,:] = beta[i,:] / sum(beta[i,:])
-
+  
   eta = 1
 
   return alpha, beta, eta
@@ -110,6 +110,21 @@ def calculate_phi(gamma, beta, document, k):
   # According to step 6
   phi = beta[:, document[:]].T * np.tile(np.exp(digamma(gamma)),(N,1))
 
+  # Normalize phi since it's a probability (must sum up to 1)
+  phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
+
+  return phi
+
+
+## Calculate phi for document m
+def calculate_phi_debug(gamma, beta, document, k):
+  N = len(document)
+  print(beta[:, document[:]].T)
+  print(np.tile(np.exp(digamma(gamma)),(N,1)))
+  print(document[0])
+  # According to step 6
+  phi = beta[:, document[:]].T * np.tile(np.exp(digamma(gamma)),(N,1))
+  # print(phi)
   # Normalize phi since it's a probability (must sum up to 1)
   phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
 
@@ -183,32 +198,41 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
 
 
 ## The lower bound for a single document
-def lower_bound_single(alpha, beta, phi, gamma, alpha_sum, k, document):
+def lower_bound_single(alpha, beta, phi, gamma, alpha_sum, k, document, debug = False):
   # Helpful things
   digamma_gamma_sum = digamma(np.sum(gamma))
-
+  if debug:
+    print(digamma_gamma_sum)
   N = len(document)
 
   # Calculating the lower bound according to page 1020
 
   # First row
   likelihood = alpha_sum # First part of first row
-
+  if debug:
+    print(likelihood)
   likelihood += np.sum((alpha-1)*(digamma(gamma) - digamma_gamma_sum)) # Second part of first row
-  
+  if debug:
+    print(likelihood)
   # Second row
   likelihood += np.sum(phi * np.tile((digamma(gamma) - digamma_gamma_sum), (N,1)))
-
+  if debug:
+    print(likelihood)
   # Third row
   for n in range(N):
     likelihood += np.sum(phi[n,:]*np.log(np.maximum(beta[:,document[n]], 1e-90)))
-
+  if debug:
+    print(likelihood)
   # The fourth row
   likelihood += -loggamma(np.sum(gamma)) + np.sum(loggamma(gamma)) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma_sum))
-
+  if debug:
+    print(likelihood)
   # The fifth row
   likelihood += np.sum(np.log(phi ** phi))
-  
+  if debug:
+    print(likelihood)
+  if debug:
+    a = 1 / 0
   return likelihood
 
 
@@ -232,6 +256,7 @@ def VI_algorithm(k, document, phi_old, gamma_old, lambda_old, alpha, beta, eta, 
   it = 0
   while True:
     it += 1
+
     # Calculate the new phis
     phi_new = calculate_phi(gamma_old, beta, document, k)
 
@@ -241,11 +266,13 @@ def VI_algorithm(k, document, phi_old, gamma_old, lambda_old, alpha, beta, eta, 
     # Calculate the new lambdas (not sure about this one)
     #lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
 
-    lower_bound_new = lower_bound_single(alpha, beta, phi_new, gamma_new, alpha_sum, k, document)
+    lower_bound_new = lower_bound_single(alpha, beta, phi_new, gamma_new, alpha_sum, k, document, debug = False)
 
     # if convergence_criteria_VI(phi_old, gamma_old, phi_new, gamma_new):
     #   break
-    if abs((lower_bound_old-lower_bound_new) / lower_bound_old) < tolerance:
+    convergence = abs((lower_bound_old-lower_bound_new) / lower_bound_old)
+
+    if convergence < tolerance:
       break
     else:
       phi_old = phi_new
@@ -346,7 +373,7 @@ def perplexity(alpha, beta, phi, gamma, alpha_sum, k, corpus):
   for doc in corpus:
     N += len(doc)
 
-  return np.exp(L/N)
+  return np.exp(-L/N)
 
 
 ## Printing all the top-words
@@ -412,35 +439,81 @@ def print_parameters(parameters, printing = True):
       print(parameters[i])
 
 
+## Smooth beta, adding pseudocount
+def smooth_beta(beta):
+  V = beta.shape[1]
+  k = beta.shape[0]
+
+  num_smoothings = 0
+  for j in range(V):
+    if np.sum(beta[:,j]) == 0:
+      num_smoothings += 1
+      beta[:,j] = np.ones(k)
+
+  print(num_smoothings, "smoothings were needed!")
+
+  return beta
+
+
 ## Print perplexity
 def print_perplexity(alpha, beta, phi, gamma, k, training, test):
 
   alpha_sum = loggamma(np.sum(alpha)) - np.sum(loggamma(alpha))
 
+  beta = smooth_beta(beta)
+
   print(phi[0].shape)
-  print('Perplexity of the training set (', len(training), ' documents ):')
+  print('\nPerplexity of the training set (', len(training), ' documents ):')
   training_perp = perplexity(alpha, beta, phi, gamma, alpha_sum, k, training)
   print(training_perp)
 
-  print('Perplexity of the test set (', len(test), ' documents ):')
+  print('\nPerplexity of the test set (', len(test), ' documents ):')
   phis, gammas, lambdas = initialize_parameters_VI(alpha, test, k)
   print(alpha.shape, beta.shape)
   for d in range(len(test)):
-    print(d)
-    phi_new, gamma_new = VI_algorithm(k, test[d], phis[d], gammas[d], lambdas, alpha, beta, 0, alpha_sum, tolerance=1)
+    phi_new, gamma_new = VI_algorithm(k, test[d], phis[d], gammas[d], lambdas, alpha, beta, 0, alpha_sum, tolerance=1e-6, debug = False)
     phis[d], gammas[d] = phi_new, gamma_new
 
-  test_perp = perplexity(alpha, beta, phis, gammas, k, test)
+  test_perp = perplexity(alpha, beta, phis, gammas, alpha_sum, k, test)
   print(test_perp)
 
 
+## printing predictive perplexity
+def print_predictive_perplexity(alpha, beta, test, test_removed):
+  alpha_sum = loggamma(np.sum(alpha)) - np.sum(loggamma(alpha))
+
+  phis, gammas, lambdas = initialize_parameters_VI(alpha, test, k)
+
+  beta = smooth_beta(beta)
+
+  for d in range(len(test)):
+    phi_new, gamma_new = VI_algorithm(k, test[d], phis[d], gammas[d], lambdas, alpha, beta, 0, alpha_sum, tolerance=1e-6, debug = False)
+    phis[d], gammas[d] = phi_new, gamma_new
+  
+  perplexity = predictive_perplexity(beta, gammas, test_removed)
+  print("The predictive perplexity is...")
+  print("\t", perplexity)
+
+
+## Calculating predictive perplexity
+def predictive_perplexity(beta, gamma, test_removed):
+  exponent = 0
+
+  for (user, word) in enumerate(test_removed):
+    c = loggamma(np.sum(gamma[user])) - np.log(np.sum(gamma_function(gamma[user]))) - np.sum(np.log(gamma[user]))
+    f = np.log(np.sum(beta[:, word] * (gamma[user] / (1 + gamma[user]))))
+    exponent += c + f
+  
+  perplexity = np.exp(- exponent / len(test_removed))
+
+  return perplexity
 
 
 ## Main function
 def main():
   # Initial parameters
-  k = 100              # Number of topics
-  num_documents = 10**2 #10**6
+  k = 50              # Number of topics
+  num_documents = 2000 #10**6
 
   # File directories
   vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
@@ -448,7 +521,9 @@ def main():
 
   # Load data
   corpus, V = load_data(filename, num_documents)
-  nTraining = num_documents -20
+  
+  nTraining = int(num_documents * 0.9)
+
   test = corpus[nTraining:]
   corpus = corpus[:nTraining]
 
@@ -456,7 +531,7 @@ def main():
   parameters = LDA_algorithm(corpus, V, k)
 
   # Print the parameters
-  print_parameters(parameters, True)
+  print_parameters(parameters, False)
 
   # Print most likely topics and words
   alpha = parameters[0]
