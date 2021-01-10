@@ -332,6 +332,7 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     print("Computing the lower bound...")
     start_n = time.time()
     lower_bound_new = lower_bound_corpus(alpha_new, beta_new, phi_old, gamma_new, alpha_sum_new, k, corpus)
+    print("\t", lower_bound_new)
     stop_n = time.time()
     print('...completed in:', stop_n - start_n)
 
@@ -472,6 +473,8 @@ def print_perplexity(alpha, beta, phi, gamma, k, training, test):
 
 ## printing predictive perplexity
 def print_predictive_perplexity(alpha, beta, test, test_removed):
+  k = len(alpha)
+
   alpha_sum = loggamma(np.sum(alpha)) - np.sum(loggamma(alpha))
 
   phis, gammas, lambdas = initialize_parameters_VI(alpha, test, k)
@@ -491,10 +494,19 @@ def print_predictive_perplexity(alpha, beta, test, test_removed):
 def predictive_perplexity(beta, gamma, test_removed):
   exponent = 0
 
+  # for (user, word) in enumerate(test_removed):
+  #   c = loggamma(np.sum(gamma[user])) - np.sum(loggamma(gamma[user])) - np.sum(np.log(gamma[user]))
+  #   # print(beta[:, word] * (gamma[user] / (1 + gamma[user])))
+  #   print(c)
+  #   print(gamma[user])
+  #   f = np.log(np.sum(beta[:, word] * (gamma[user] / (1 + gamma[user]))))
+  #   # print(f)
+  #   exponent += c + f
+  # print(exponent)
+  # perplexity = np.exp(- exponent / len(test_removed))
+
   for (user, word) in enumerate(test_removed):
-    c = loggamma(np.sum(gamma[user])) - np.log(np.sum(gamma_function(gamma[user]))) - np.sum(np.log(gamma[user]))
-    f = np.log(np.sum(beta[:, word] * (gamma[user] / (1 + gamma[user]))))
-    exponent += c + f
+    exponent += np.log(np.sum(beta[:, word] * gamma[user] / np.sum(gamma[user])))
   
   perplexity = np.exp(- exponent / len(test_removed))
 
@@ -543,35 +555,34 @@ def main_Reuters():
 ## Main function eachmovie
 def main_each_movie():
   # Initial parameters
-  k = 50              # Number of topics
+  k = 20              # Number of topics
+  num_users = 3200
+  num_test_users = 390
 
   # File directories
   filename = "filtered_corpus.txt"
 
   # Load data
-  training_data, test_data, removed_movies, V = eachmovie.dataloaderEachmovie(filename)
-  print(training_data[0][0])
-  # Run the algorithm
-  parameters = LDA_algorithm(training_data, V, k)
+  training_data, test_data, removed_movies, V = eachmovie.dataloaderEachmovie(filename, num_users, num_test_users)
+  print("\nNumber of users in training data:", len(training_data))
+  print("Number of users in training data:", len(test_data))
+  print("Number of unique reviewed movies:", V)
 
-  
+  # Run the algorithm
+  parameters = LDA_algorithm(training_data, V, k, 1e-5)
 
   # Print the parameters
   print_parameters(parameters, False)
 
-  # Print most likely topics and words
-  # alpha = parameters[0]
-  # num_topics = 5 # The number of topics that should be printed
-  # topic_indices = print_likely_topics(alpha, num_topics)
-  # beta = parameters[1]
-  # print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k, indices = topic_indices)
+  alpha, beta = parameters[0], parameters[1]
+
+  print_predictive_perplexity(alpha, beta, test_data, removed_movies)  
 
   # phi = parameters[2]
   # gamma = parameters[3]
   # print(len(corpus), len(test))
   # print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
-  # print()
 
 
 
