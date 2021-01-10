@@ -5,15 +5,23 @@ import random
 def eachmovie_parser(filename):
     
     datafile = './' + filename
-    movieset = pd.read_csv(datafile,  delimiter=" ",header=None)
+    movieset = pd.read_csv(datafile,  delimiter=" ",header=None, dtype= int)
     movieset_array = np.array(movieset) #shape (2811718,10)
     movie_column = movieset_array[:,0]
     user_column = movieset_array[:,1]
     rating_column = movieset_array[:,2]
+    unique_users = np.unique(user_column)#(X[:,1]) #Finds all the unique user IDs
+    unique_movies = np.unique(movie_column)#(X[:,0]) #All the unique movies
+    index_dict = {}
+    for i in range(len(unique_movies)):
+        index_dict[str(unique_movies[i])] = i
+    for i in range(len(movie_column)):
+        temporary = index_dict[str(movie_column[i])]
+        movie_column[i] = temporary
+    #print("Number of changed indexes was: " + str(change_count))
+
     X = np.c_[movie_column,user_column]
     X = np.c_[X,rating_column]
-    unique_users = np.unique(X[:,1]) #Finds all the unique user IDs
-    unique_movies = np.unique(X[:,0]) #All the unique movies
     V = len(unique_movies)
     movie_vocabulary = {}
     users = {}
