@@ -337,6 +337,18 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
   return [alpha_new, beta_new, phi_old, gamma_old]
 
 
+## Computing the perplexity for a given corpus
+def perplexity(alpha, beta, phi, gamma, alpha_sum, k, corpus):
+  
+  L = lower_bound_corpus(alpha, beta, phi, gamma, alpha_sum, k, corpus)
+
+  N = 0
+  for doc in corpus:
+    N += len(doc)
+
+  return np.exp(L/N)
+
+
 ## Printing all the top-words
 def print_top_words_for_all_topics(vocab_file, beta, top_x, k, indices = []):
   '''Used for getting the top_x highest probability words for each topic'''
@@ -400,11 +412,35 @@ def print_parameters(parameters, printing = True):
       print(parameters[i])
 
 
+## Print perplexity
+def print_perplexity(alpha, beta, phi, gamma, k, training, test):
+
+  alpha_sum = loggamma(np.sum(alpha)) - np.sum(loggamma(alpha))
+
+  print(phi[0].shape)
+  print('Perplexity of the training set (', len(training), ' documents ):')
+  training_perp = perplexity(alpha, beta, phi, gamma, alpha_sum, k, training)
+  print(training_perp)
+
+  print('Perplexity of the test set (', len(test), ' documents ):')
+  phis, gammas, lambdas = initialize_parameters_VI(alpha, test, k)
+  print(alpha.shape, beta.shape)
+  for d in range(len(test)):
+    print(d)
+    phi_new, gamma_new = VI_algorithm(k, test[d], phis[d], gammas[d], lambdas, alpha, beta, 0, alpha_sum, tolerance=1)
+    phis[d], gammas[d] = phi_new, gamma_new
+
+  test_perp = perplexity(alpha, beta, phis, gammas, k, test)
+  print(test_perp)
+
+
+
+
 ## Main function
 def main():
   # Initial parameters
   k = 100              # Number of topics
-  num_documents = 10**6
+  num_documents = 10**2 #10**6
 
   # File directories
   vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
@@ -412,6 +448,9 @@ def main():
 
   # Load data
   corpus, V = load_data(filename, num_documents)
+  nTraining = num_documents -20
+  test = corpus[nTraining:]
+  corpus = corpus[:nTraining]
 
   # Run the algorithm
   parameters = LDA_algorithm(corpus, V, k)
@@ -425,6 +464,13 @@ def main():
   topic_indices = print_likely_topics(alpha, num_topics)
   beta = parameters[1]
   print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k, indices = topic_indices)
+
+  phi = parameters[2]
+  gamma = parameters[3]
+  print(len(corpus), len(test))
+  print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
+
+  print()
 
 
 if __name__ == "__main__":
