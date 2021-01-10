@@ -69,12 +69,22 @@ def eachmovie_parser(filename, training_size, test_size):
         corpus.append([])
         corpus[user] = tempcorpus[user][0]
     #---------------Count unique movies ----------------------------
-    Vocabulary = []
+    vocabulary = []
     for i in range(len(corpus)):
         for j in range(len(corpus[i])):
-            Vocabulary.append(corpus[i][j])
-    V = len(np.unique(Vocabulary))
+            vocabulary.append(corpus[i][j])
+    V = len(np.unique(vocabulary))
     #---------------Count unique movies ----------------------------
+
+    #--------------------FIXED GAPS IN MOVIE INDEXES---------------------------------------------------
+    vocabulary_dict = {}
+    for i in range(V):
+        vocabulary_dict[str(np.unique(vocabulary)[i])] = i
+    for i in range(len(corpus)):
+        for j in range(len(corpus[i])):
+            temporary = vocabulary_dict[str(corpus[i][j])]
+            corpus[i][j] = temporary
+    #------------------------------------------------------------------------------------------------
 
     return tempcorpus, corpus, users, V
 
