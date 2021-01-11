@@ -42,11 +42,12 @@ def eachmovie_parser(filename, training_size, test_size):
         while k == True:
             if X[i,1] == user and i < (np.shape(X[:,1])[0]- 1):
                 movie = X[i,0]
-                users[str(user)][0].append(movie)#movies
+                #users[str(user)][0].append(movie)#movies
                 rating = X[i,2]
-                users[str(user)][1].append(rating) #rating
-                tempcorpus[userID][0].append(movie)
-                tempcorpus[userID][1].append(rating)
+                #users[str(user)][1].append(rating) #rating
+                if rating >= 3:
+                    tempcorpus[userID][0].append(movie)
+                    tempcorpus[userID][1].append(rating)
                 i += 1
 
             else:
@@ -119,6 +120,10 @@ def write_corpus(corpus):
     f1.close()
 
 def dataloaderEachmovie(filename, training_size,test_size):
+
+    '''--------------------------------------------'''
+    '''Max sum of training_size + test_size = 3667!'''
+    '''--------------------------------------------'''
     
     filtered_corpus, corpus, users, V = eachmovie_parser(filename,training_size, test_size) # Corpus is an array:[([movies 1 to N],[ratings 1 to N]),....]. corpus[i] gives you the ith user-vector
     #write_corpus(filtered_corpus)
@@ -130,6 +135,7 @@ def dataloaderEachmovie(filename, training_size,test_size):
 
 if __name__ == '__main__':
     filename =  "filtered_corpus.txt"
-    training_size = 1000
-    test_size = 200
+    training_size = 3277
+    test_size = 390
     dataloaderEachmovie(filename, training_size, test_size)
+    print("EachMovieParser done!")
