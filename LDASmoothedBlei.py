@@ -85,28 +85,6 @@ def initialize_parameters_EM(V, k):
   return alpha, eta
 
 
-## Initialize VI parameters
-def initialize_parameters_VI(alpha, eta, corpus, k, V):
-  np.random.seed(1)
-  # M x N_d x k
-  phi = []
-  for document in corpus:
-    phi.append(np.ones((len(document),k)) * 1/k)
-
-  # M x k
-  gamma = np.tile(alpha.copy(),(len(corpus),1)) + np.tile(np.array(list(map(lambda x: len(x),corpus))),(k,1)).T / k
-  
-  # lambdas = np.random.rand(k, V)
-
-  # for i in range(k):
-  #   # Normalizing
-  #   lambdas[i,:] = lambdas[i,:] / sum(lambdas[i,:])
-
-  lambdas = np.ones((k,V)) * (eta + len(corpus[0])/V) + np.random.rand(k, V) * 2
-  
-  return phi, gamma, lambdas
-
-
 ## Calculate phi for document m
 def calculate_phi(gamma, lambdas, document, k):
   N = len(document)
@@ -116,42 +94,16 @@ def calculate_phi(gamma, lambdas, document, k):
     # Computing in log-space to avoid underflow
     log_phi_n = digamma(lambdas[:, document[n]]) - digamma(np.sum(lambdas, axis=1)) + digamma(gamma) # - digamma(np.sum(gamma))
 
+    # Normalize
     log_phi_n = log_phi_n - scipy.special.logsumexp(log_phi_n)
 
+    # Back to normal space
     phi_n = np.exp(log_phi_n)
 
-    phi.append(phi_n)
-
-    # According to step 6
-    # phi_n = np.exp(digamma(lambdas[:, document[n]]) - digamma(np.sum(lambdas, axis=1))) * np.exp(digamma(gamma) - digamma(np.sum(gamma)))
-    
-
-    
-    # phi_n = beta[:, document[n]] * np.exp(digamma(gamma))
-    # print(phi_n)
-    # Normalize phi since it's a probability (must sum up to 1)
-    # phi_n = phi_n / np.sum(phi_n)
-    
-
-    
+    phi.append(phi_n) 
   
   phi = np.array(phi)
   
-  return phi
-
-
-## Calculate phi for document m
-def calculate_phi_debug(gamma, beta, document, k):
-  N = len(document)
-  print(beta[:, document[:]].T)
-  print(np.tile(np.exp(digamma(gamma)),(N,1)))
-  print(document[0])
-  # According to step 6
-  phi = beta[:, document[:]].T * np.tile(np.exp(digamma(gamma)),(N,1))
-  # print(phi)
-  # Normalize phi since it's a probability (must sum up to 1)
-  phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
-
   return phi
 
 
@@ -273,60 +225,40 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
   return np.abs(alpha)
 
 
-## The lower bound for a single document
-def lower_bound_single(alpha, lambdas, phi, gamma, alpha_sum, k, document, debug = False):
-  # Helpful things
-  digamma_gamma_sum = digamma(np.sum(gamma))
+## Calculate the lower bound
+def calculate_lower_bound(alpha, eta, lambdas, phi, gamma, k, V, corpus):
+  M = len(corpus)
 
-  N = len(document)
+  likelihood = 0
 
-  # Calculating the lower bound according to page 1020
+  for d in range(M):
+    likelihood += calc_lower_bound(alpha, eta, lambdas, phi[d], gamma[d], k, V, corpus[d])
 
-  # First row
-  likelihood = alpha_sum # First part of first row
+  likelihood += - np.sum(loggamma(np.sum(lambdas, axis = 1))) + np.sum(loggamma(lambdas)) + np.sum((eta - lambdas) * (digamma(lambdas) - np.tile(digamma(np.sum(lambdas, axis = 1)),(V,1)).T))
 
-  likelihood += np.sum((alpha-1)*(digamma(gamma) - digamma_gamma_sum)) # Second part of first row
-
-  # Second row
-  likelihood += np.sum(phi * np.tile((digamma(gamma) - digamma_gamma_sum), (N,1)))
-
-  # Third row
-  # for n in range(N):
-  #   # likelihood += np.sum(phi[n,:]*np.log(np.maximum(beta[:,document[n]], 1e-90)))
-  #   likelihood += np.sum(phi[n,:] * (digamma(lambdas[:,document[n]]) - digamma(np.sum(lambdas, axis = 1))))
-
-  likelihood += np.sum(phi * (digamma(lambdas[:,document]) - digamma(np.sum(lambdas, axis = 1))))
-
-  # The fourth row
-  likelihood += -loggamma(np.sum(gamma)) + np.sum(loggamma(gamma)) - np.sum((gamma-1)*(digamma(gamma) - digamma_gamma_sum))
-
-  # The fifth row
-  likelihood += np.sum(np.log(phi ** phi))
+  likelihood += k * (loggamma(V * eta) - V * loggamma(eta)) + M * (loggamma(np.sum(alpha)) - np.sum(loggamma(alpha)))
 
   return likelihood
 
 
-## The lower bound for the whole corpus
-def lower_bound_corpus(alpha, eta, lambdas, phi, gamma, alpha_sum, k, V, corpus):
-  likelihood = 0
+## Terms in lower bound for every document
+def calc_lower_bound(alpha, eta, lambdas, phi, gamma, k, V, document):
+  digamma_gamma_sum = digamma(np.sum(gamma))
 
-  for (d, document) in enumerate(corpus):
-    likelihood += lower_bound_single(alpha, lambdas, phi[d], gamma[d], alpha_sum, k, document)
+  N = len(document)
+  # print((digamma(lambdas[:,document]) - np.tile(digamma(np.sum(lambdas, axis = 1)),(N,1)).T))
+  # Phis
+  likelihood = np.sum(phi * (np.tile((digamma(gamma) - digamma_gamma_sum), (N,1)) + (digamma(lambdas[:,document]).T - np.tile(digamma(np.sum(lambdas, axis = 1)),(N,1))))) + np.sum(np.log(phi ** phi))
 
-  likelihood += k * (loggamma(V * eta) - V * loggamma(eta)) 
+  # Gammas
+  likelihood += -loggamma(np.sum(gamma)) + np.sum(loggamma(gamma)) + np.sum((alpha-gamma)*(digamma(gamma) - digamma_gamma_sum))
 
-  likelihood += (eta - 1) * ((np.sum(digamma(lambdas))) - V * np.sum(digamma(np.sum(lambdas, axis = 1))))
-
-  likelihood -= np.sum(loggamma(np.sum(lambdas, axis = 1))) - np.sum(loggamma(lambdas)) + np.sum((lambdas-1) * (digamma(lambdas) - np.tile(digamma(np.sum(lambdas, axis = 1)),(V,1)).T))
-  
   return likelihood
 
 
 ## VI-algorithm run during the E-step for every document m
-def VI_algorithm(document, k, V, phi_old, gamma_old, lambdas, alpha, eta, alpha_sum, tolerance = 1e-4, debug = False):
-  # document = np.array(doc)
-  # print(document)
-  lower_bound_old = lower_bound_single(alpha, lambdas, phi_old, gamma_old, alpha_sum, k, document)
+def VI_algorithm(document, k, V, lambdas, alpha, eta, gamma_old, tolerance = 1e-4, debug = False):
+  # gamma_old = np.ones(k)
   
   # Extended pseudocode from page 1005
   it = 0
@@ -339,32 +271,73 @@ def VI_algorithm(document, k, V, phi_old, gamma_old, lambdas, alpha, eta, alpha_
     # Calculate the new gammas
     gamma_new = calculate_gamma(phi_new, alpha, k)
 
-    lower_bound_new = lower_bound_single(alpha, lambdas, phi_new, gamma_new, alpha_sum, k, document, debug = False)
-
-    convergence = abs((lower_bound_old-lower_bound_new) / lower_bound_old)
+    convergence = np.linalg.norm(gamma_new-gamma_old) / k
 
     if convergence < tolerance:
       break
     else:
-      phi_old = phi_new
       gamma_old = gamma_new
-      lower_bound_old = lower_bound_new
-
+  
   return phi_new, gamma_new
+
+
+## Running inner EM to calculate lambda
+def EM_algorithm_lambda(corpus, k, V, alpha, eta, lambda_old, gamma_old, tolerance = 1e-4):
+  lower_bound_old = -1e+40
+
+  M = len(corpus)
+
+  # lambda_old = 0.01 * np.random.rand(k,V)
+
+  it = 0
+  while True:
+    it += 1
+    print("\n\tEM-iteration (inner):", it)
+    print("\tE-step (inner)...")
+    start = time.time()
+    phi_new, gamma_new = [], []
+
+    for d in range(M):
+      phi_d, gamma_d = VI_algorithm(corpus[d], k, V, lambda_old, alpha, eta, gamma_old[d])
+      phi_new.append(phi_d); gamma_new.append(gamma_d)
+
+    stop = time.time()
+    print('\t...completed in:', stop - start)
+
+    print("\tM-step (inner)...")
+    start = time.time()
+    lambda_new = calculate_lambda(phi_new, eta, corpus, V, k)
+    stop = time.time()
+    print('\t...completed in:', stop - start)
+
+    print('\tComputing lower bound...')
+    start = time.time()
+    lower_bound_new = calculate_lower_bound(alpha, eta, lambda_new, phi_new, gamma_new, k, V, corpus)
+    stop = time.time()
+    print('\t\t', lower_bound_new)
+    print('\t...completed in:', stop - start)
+
+    convergence = abs((lower_bound_new-lower_bound_old) / lower_bound_old)
+    # print(convergence)
+    if convergence < tolerance:
+      break
+    else:
+      lower_bound_old = lower_bound_new
+      lambda_old = lambda_new
+      gamma_old = gamma_new
+
+  return phi_new, gamma_new, lambda_new
 
 
 ## LDA function
 def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
   alpha_old, eta_old = initialize_parameters_EM(V, k)
+  lambda_old = np.random.rand(k,V)
+  gamma_old = [np.ones(k) for i in range(len(corpus))]
+
   M = len(corpus)
 
-  phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha_old, eta_old, corpus, k, V)
-
-  alpha_sum_old = loggamma(np.sum(alpha_old)) - np.sum(loggamma(alpha_old))
-
-  lower_bound_old = lower_bound_corpus(alpha_old, eta_old, lambda_old, phi_old, gamma_old, alpha_sum_old, k, V, corpus)
-
-  print("Starting lower bound:", lower_bound_old)
+  lower_bound_old = -1e+40
 
   start_EM = time.time()
   it = 0
@@ -374,50 +347,38 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
   while True:
     # print(alpha_old)
     it += 1
-
+    
     print("\nEM-iteration:", it)
 
     ##################
     # --- E-step --- #
     ##################
-    print("E-step...")
+    print("E-step (outer)...")
     start = time.time()
-    phi_new, gamma_new = [], []
 
-    iteration = 0
-    for d in range(len(corpus)):
-      if (d) % int(len(corpus) / 10) == 0 and d > 0:
-        iteration += 1
-        print("\t{}% of documents converged".format(iteration * 10))
-      phi_d, gamma_d = VI_algorithm(corpus[d], k, V, phi_old[d], gamma_old[d], lambda_old, alpha_old, eta_old, alpha_sum_old)
-      phi_new.append(phi_d); gamma_new.append(gamma_d)
-    
-    phi_old, gamma_old = phi_new, gamma_new
-
-    lambda_new = calculate_lambda(phi_new, eta_old, corpus, V, k)
+    phi_new, gamma_new, lambda_new = EM_algorithm_lambda(corpus, k, V, alpha_old, eta_old, lambda_old, gamma_old)
     
     stop = time.time()
-    print('...completed in:', stop - start)
+    print('\n...completed in:', stop - start)
     ##################
     # --- M-step --- #
     ##################
-    print("M-step...")
+    print("M-step (outer)...")
     start = time.time()
-    eta_new = calculate_eta(lambda_old, eta_old, V, k)
+    eta_new = calculate_eta(lambda_new, eta_old, V, k)
 
-    alpha_new = calculate_alpha(gamma_old, alpha_old, M, k)
+    alpha_new = calculate_alpha(gamma_new, alpha_old, M, k)
 
-    alpha_sum_new = loggamma(np.sum(alpha_old)) - np.sum(loggamma(alpha_old))
     
     stop = time.time()
     print('...completed in:', stop - start)
     ########################
     # --- Convergence? --- #
     ########################
-    print("Eta:", eta_new)
+    # print("Eta:", eta_new)
     print("Computing the lower bound...")
     start_n = time.time()
-    lower_bound_new = lower_bound_corpus(alpha_new, eta_new, lambda_new, phi_new, gamma_new, alpha_sum_new, k, V, corpus)
+    lower_bound_new = calculate_lower_bound(alpha_new, eta_new, lambda_new, phi_new, gamma_new, k, V, corpus)
     print("\t", lower_bound_new)
     stop_n = time.time()
     print('...completed in:', stop_n - start_n)
@@ -428,6 +389,7 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     # The change of the lower bound
     delta_lower_bound = abs((lower_bound_old-lower_bound_new) / lower_bound_old)
     print("The lower bound changed: {}%".format(np.round(100*delta_lower_bound, 5)))
+    print("-----------------------------------------------------")
     if delta_lower_bound < tolerance:
       print("Convergence after", it, "iterations!")
       break
@@ -435,13 +397,13 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     else:
       alpha_old = alpha_new
       eta_old = eta_new
-      lambda_old = lambda_new
       lower_bound_old = lower_bound_new
-      alpha_sum_old = alpha_sum_new
+      lambda_old = lambda_new
+      gamma_old = gamma_new
     
   stop_EM = time.time()
   print('\nThe algorithm converged in', stop_EM - start_EM, "seconds")
-  return [alpha_new, eta_new, lambda_new, phi_old, gamma_old]
+  return [alpha_new, eta_new, lambda_new, phi_new, gamma_new]
 
 
 ## Computing the perplexity for a given corpus
@@ -457,7 +419,7 @@ def perplexity(alpha, beta, phi, gamma, alpha_sum, k, corpus):
 
 
 ## Printing all the top-words
-def print_top_words_for_all_topics(vocab_file, beta, top_x, k, indices = []):
+def print_top_words_for_all_topics(vocab_file, lambas, top_x, k, indices = []):
   '''Used for getting the top_x highest probability words for each topic'''
   if len(indices) == 0:
     indices = list(range(k))
@@ -473,11 +435,12 @@ def print_top_words_for_all_topics(vocab_file, beta, top_x, k, indices = []):
   # Get most probable words for each topic
   for topic in indices:
     print('The ', top_x,' most probable words for topic with index: ', topic)
-    word_distribution = beta[topic,:]
+    word_distribution = lambas[topic,:]
+    word_distribution = word_distribution / np.sum(word_distribution)
     indices = list(np.argsort(word_distribution))[-top_x:]
     for word_index in reversed(indices):
       word = index_word_vocab[word_index + 1] # + 1 since the dictionary starts at 1 and the word_indices in LDA starts at 0
-      print(word)    
+      print(word, "- {}%".format(round(100*word_distribution[word_index],3)))    
 
 
 ## Get the most likely topics
@@ -604,7 +567,7 @@ def predictive_perplexity(beta, gamma, test_removed):
 def main_Reuters():
   # Initial parameters
   k = 20             # Number of topics
-  num_documents = 400 #10**6
+  num_documents = 200 #10**6
 
   # File directories
   vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
@@ -630,7 +593,7 @@ def main_Reuters():
   print_top_words_for_all_topics(vocab_file, lambdas, top_x=15, k=k, indices = topic_indices)
 
   # print(len(corpus), len(test))
-  print_perplexity(alpha, eta, lambdas, phi, gamma, k, corpus, test)
+  # print_perplexity(alpha, eta, lambdas, phi, gamma, k, corpus, test)
 
   # print()
 
