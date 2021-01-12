@@ -403,6 +403,8 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     
   stop_EM = time.time()
   print('\nThe algorithm converged in', stop_EM - start_EM, "seconds")
+  print('\nM =', M)
+  print('k = ', k, '\n')
   return [alpha_new, eta_new, lambda_new, phi_new, gamma_new]
 
 
@@ -440,7 +442,7 @@ def print_top_words_for_all_topics(vocab_file, lambas, top_x, k, indices = []):
     indices = list(np.argsort(word_distribution))[-top_x:]
     for word_index in reversed(indices):
       word = index_word_vocab[word_index + 1] # + 1 since the dictionary starts at 1 and the word_indices in LDA starts at 0
-      print(word, "- {}%".format(round(100*word_distribution[word_index],3)))    
+      print("\t", word, "- {}%".format(round(100*word_distribution[word_index],3)))    
 
 
 ## Get the most likely topics
