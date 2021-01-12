@@ -77,9 +77,12 @@ def VI_algorithm(k, V, corpus, phis_old, gammas_old, lambda_old, alpha, eta, alp
 
     lower_bound_new = lower_bound_corpus(alpha, eta, lambda_new, phis_new, gammas_new, alpha_sum, k, V, corpus)
 
+    # "bad" convergence criteria
+    # convergence = np.linalg.norm(np.array(gammas_new) - np.array(gammas_old)) /np.linalg.norm(np.array(gammas_old))
+
+    # Correct convergence criteria
     convergence = abs((lower_bound_old-lower_bound_new) / lower_bound_old)
-    # print(lower_bound_new)
-    # print(convergence)
+
     
     if convergence < tolerance:
       break
@@ -124,6 +127,30 @@ def calculate_phi(gamma, lambdas, document, k):
     # Normalize phi since it's a probability (must sum up to 1)
     # phi_n = phi_n / np.sum(phi_n)
     phi_n = np.exp(log_phi_n)
+
+    phi.append(phi_n)
+  
+  phi = np.array(phi)
+  
+  return phi
+
+
+## Calculate phi for document m
+def calculate_phi_bad(gamma, lambdas, document, k):
+  N = len(document)
+
+  phi = []
+  for n in range(N):
+    # According to step 6
+    phi_n = lambdas[:, document[n]] / np.sum(lambdas[:, document[n]]) * np.exp(digamma(gamma) - digamma(np.sum(gamma)))
+    # log_phi_n = digamma(lambdas[:, document[n]]) - digamma(np.sum(lambdas, axis=1)) + digamma(gamma) - digamma(np.sum(gamma))
+
+    # log_phi_n = log_phi_n - scipy.special.logsumexp(log_phi_n)
+    # phi_n = beta[:, document[n]] * np.exp(digamma(gamma))
+    # print(phi_n)
+    # Normalize phi since it's a probability (must sum up to 1)
+    phi_n = phi_n / np.sum(phi_n)
+    # phi_n = np.exp(log_phi_n)
 
     phi.append(phi_n)
   
@@ -215,7 +242,7 @@ def initialize_parameters_EM(V, k):
   approx_alpha = 0.001
   alpha = np.random.uniform(approx_alpha - 0.1 * approx_alpha, approx_alpha + 0.1 * approx_alpha, k)      
 
-  approx_eta = 0.2
+  approx_eta = 0.0001
   eta = np.random.uniform(approx_eta - 0.1 * approx_eta, approx_eta + 0.1 * approx_eta) 
 
   return alpha, eta

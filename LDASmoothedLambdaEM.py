@@ -79,15 +79,10 @@ def initialize_parameters_EM(V, k):
 
   # alpha = np.full(shape = k, fill_value = 50/k)
 
-  beta = np.random.rand(k, V)
-  #beta = np.ones((k, V)) * (1/V)
-  for i in range(k):
-    # Normalizing
-    beta[i,:] = beta[i,:] / sum(beta[i,:])
-  
-  eta = 1
+  approx_eta = 0.0001
+  eta = np.random.uniform(approx_eta - 0.1 * approx_eta, approx_eta + 0.1 * approx_eta) 
 
-  return alpha, beta, eta
+  return alpha, eta
 
 
 ## Initialize VI parameters
@@ -101,27 +96,47 @@ def initialize_parameters_VI(alpha, eta, corpus, k, V):
   # M x k
   gamma = np.tile(alpha.copy(),(len(corpus),1)) + np.tile(np.array(list(map(lambda x: len(x),corpus))),(k,1)).T / k
   
-  lambdas = np.random.rand(k, V)
+  # lambdas = np.random.rand(k, V)
 
-  for i in range(k):
-    # Normalizing
-    lambdas[i,:] = lambdas[i,:] / sum(lambdas[i,:])
+  # for i in range(k):
+  #   # Normalizing
+  #   lambdas[i,:] = lambdas[i,:] / sum(lambdas[i,:])
 
-  # lambdas = np.ones((k,V)) * (eta + 1/ V)
+  lambdas = np.ones((k,V)) * (eta + len(corpus[0])/V) + np.random.rand(k, V) * 2
   
   return phi, gamma, lambdas
 
 
 ## Calculate phi for document m
-def calculate_phi(gamma, beta, document, k):
+def calculate_phi(gamma, lambdas, document, k):
   N = len(document)
 
-  # According to step 6
-  phi = beta[:, document[:]].T * np.tile(np.exp(digamma(gamma)),(N,1))
+  phi = []
+  for n in range(N):
+    # Computing in log-space to avoid underflow
+    log_phi_n = digamma(lambdas[:, document[n]]) - digamma(np.sum(lambdas, axis=1)) + digamma(gamma) # - digamma(np.sum(gamma))
 
-  # Normalize phi since it's a probability (must sum up to 1)
-  phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
+    log_phi_n = log_phi_n - scipy.special.logsumexp(log_phi_n)
 
+    phi_n = np.exp(log_phi_n)
+
+    phi.append(phi_n)
+
+    # According to step 6
+    # phi_n = np.exp(digamma(lambdas[:, document[n]]) - digamma(np.sum(lambdas, axis=1))) * np.exp(digamma(gamma) - digamma(np.sum(gamma)))
+    
+
+    
+    # phi_n = beta[:, document[n]] * np.exp(digamma(gamma))
+    # print(phi_n)
+    # Normalize phi since it's a probability (must sum up to 1)
+    # phi_n = phi_n / np.sum(phi_n)
+    
+
+    
+  
+  phi = np.array(phi)
+  
   return phi
 
 
@@ -164,32 +179,6 @@ def calculate_lambda(phis, eta, corpus, V, k):
 
 
 ## Calculate eta
-def calculate_eta2(lambdas, eta, V, k, nr_max_iterations = 1000, tolerance = 10 ** -4):
-  initial_eta = 100
-
-  di_lambda_sum = np.sum(digamma(lambdas)) - V * np.sum(digamma(np.sum(lambdas, axis = 1)))
-
-  log_eta = np.log(initial_eta)
-
-  for it in range(nr_max_iterations):
-    eta = np.exp(log_eta)
-
-    df = V * k * (digamma(V * eta) - digamma(eta)) + di_lambda_sum
-
-    df2 = V * k * (V * trigamma(V * eta) - trigamma(eta))
-
-    log_eta = log_eta - df / (df2 * eta + df)
-
-    if np.abs(df) < tolerance:
-      break
-  # print(it)
-  if it == nr_max_iterations - 1:
-    print("Max reached!")
-
-  return np.exp(log_eta)
-
-
-
 def calculate_eta(lambdas, eta, V, k, nr_max_iterations = 1000, tolerance = 10 ** -4):
   initial_eta = 100
 
@@ -214,6 +203,31 @@ def calculate_eta(lambdas, eta, V, k, nr_max_iterations = 1000, tolerance = 10 *
 
   return np.exp(log_eta)
 
+
+## Calculate eta in log-space
+def calculate_eta2(lambdas, eta, V, k, nr_max_iterations = 1000, tolerance = 10 ** -4):
+  initial_eta = 100
+
+  di_lambda_sum = np.sum(digamma(lambdas)) - V * np.sum(digamma(np.sum(lambdas, axis = 1)))
+
+  log_eta = np.log(initial_eta)
+
+  for it in range(nr_max_iterations):
+    eta = np.exp(log_eta)
+
+    df = V * k * (digamma(V * eta) - digamma(eta)) + di_lambda_sum
+
+    df2 = V * k * (V * trigamma(V * eta) - trigamma(eta))
+
+    log_eta = log_eta - df / (df2 * eta + df)
+
+    if np.abs(df) < tolerance:
+      break
+  # print(it)
+  if it == nr_max_iterations - 1:
+    print("Max reached!")
+
+  return np.exp(log_eta)
 
 
 ## Newton-Raphson function to calculate new alpha in the M-step
@@ -263,8 +277,7 @@ def calculate_alpha(gamma, alpha, M, k, nr_max_iterations = 1000, tolerance = 10
 def lower_bound_single(alpha, lambdas, phi, gamma, alpha_sum, k, document, debug = False):
   # Helpful things
   digamma_gamma_sum = digamma(np.sum(gamma))
-  # print(type(document))
-  # print(document)
+
   N = len(document)
 
   # Calculating the lower bound according to page 1020
@@ -308,18 +321,18 @@ def lower_bound_corpus(alpha, eta, lambdas, phi, gamma, alpha_sum, k, V, corpus)
 
 
 ## VI-algorithm run during the E-step for every document m
-def VI_algorithm(document, k, V, phi_old, gamma_old, lambdas, alpha, beta, eta, alpha_sum, tolerance = 1e-4, debug = False):
+def VI_algorithm(document, k, V, phi_old, gamma_old, lambdas, alpha, eta, alpha_sum, tolerance = 1e-4, debug = False):
   # document = np.array(doc)
   # print(document)
   lower_bound_old = lower_bound_single(alpha, lambdas, phi_old, gamma_old, alpha_sum, k, document)
-
+  
   # Extended pseudocode from page 1005
   it = 0
   while True:
     it += 1
 
     # Calculate the new phis
-    phi_new = calculate_phi(gamma_old, beta, document, k)
+    phi_new = calculate_phi(gamma_old, lambdas, document, k)
 
     # Calculate the new gammas
     gamma_new = calculate_gamma(phi_new, alpha, k)
@@ -327,20 +340,20 @@ def VI_algorithm(document, k, V, phi_old, gamma_old, lambdas, alpha, beta, eta, 
     lower_bound_new = lower_bound_single(alpha, lambdas, phi_new, gamma_new, alpha_sum, k, document, debug = False)
 
     convergence = abs((lower_bound_old-lower_bound_new) / lower_bound_old)
-    
+
     if convergence < tolerance:
       break
     else:
       phi_old = phi_new
       gamma_old = gamma_new
       lower_bound_old = lower_bound_new
-  
+
   return phi_new, gamma_new
 
 
 ## LDA function
 def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
-  alpha_old, beta_old, eta_old = initialize_parameters_EM(V, k)
+  alpha_old, eta_old = initialize_parameters_EM(V, k)
   M = len(corpus)
 
   phi_old, gamma_old, lambda_old = initialize_parameters_VI(alpha_old, eta_old, corpus, k, V)
@@ -369,8 +382,12 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     start = time.time()
     phi_new, gamma_new = [], []
 
+    iteration = 0
     for d in range(len(corpus)):
-      phi_d, gamma_d = VI_algorithm(corpus[d], k, V, phi_old[d], gamma_old[d], lambda_old, alpha_old, beta_old, eta_old, alpha_sum_old)
+      if (d) % int(len(corpus) / 10) == 0 and d > 0:
+        iteration += 1
+        print("\t{}% of documents converged".format(iteration * 10))
+      phi_d, gamma_d = VI_algorithm(corpus[d], k, V, phi_old[d], gamma_old[d], lambda_old, alpha_old, eta_old, alpha_sum_old)
       phi_new.append(phi_d); gamma_new.append(gamma_d)
     
     phi_old, gamma_old = phi_new, gamma_new
@@ -396,7 +413,7 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     ########################
     # --- Convergence? --- #
     ########################
-
+    print("Eta:", eta_new)
     print("Computing the lower bound...")
     start_n = time.time()
     lower_bound_new = lower_bound_corpus(alpha_new, eta_new, lambda_new, phi_new, gamma_new, alpha_sum_new, k, V, corpus)
@@ -601,24 +618,20 @@ def main_Reuters():
   corpus = corpus[:nTraining]
 
   # Run the algorithm
-  parameters = LDA_algorithm(corpus, V, k)
+  [alpha, eta, lambdas, phi, gamma] = LDA_algorithm(corpus, V, k)
 
   # Print the parameters
-  print_parameters(parameters, False)
+  # print_parameters(parameters, False)
 
   # Print most likely topics and words
-  alpha = parameters[0]
   num_topics = 5 # The number of topics that should be printed
   topic_indices = print_likely_topics(alpha, num_topics)
-  beta = parameters[1]
-  print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k, indices = topic_indices)
+  print_top_words_for_all_topics(vocab_file, lambdas, top_x=15, k=k, indices = topic_indices)
 
-  phi = parameters[2]
-  gamma = parameters[3]
-  print(len(corpus), len(test))
-  print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
+  # print(len(corpus), len(test))
+  # print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
-  print()
+  # print()
 
 
 ## Main function eachmovie
@@ -654,5 +667,6 @@ def main_each_movie():
 
 
 main_Reuters()
+
 
 # main_each_movie()
