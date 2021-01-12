@@ -377,7 +377,7 @@ def print_top_words_for_all_topics(vocab_file, beta, top_x, k, indices = []):
 
   # Read index-word vocabulary from file
   index_word_vocab = {}
-  with open(vocab_file, mode='r') as csv_file:
+  with open(vocab_file, mode='r', encoding='utf-8') as csv_file:
             reader = csv.reader(csv_file, delimiter=',')
             for line in reader:
               if line:
@@ -512,6 +512,37 @@ def predictive_perplexity(beta, gamma, test_removed):
 
   return perplexity
 
+## Store desired params as numpy files
+def store_parameters(parameters, storegamma=True, storephi=True):
+  '''Function used to store parameters we get from runs. For now it only stores gamma but it can be extended with the others'''
+  
+  if storegamma:
+    gamma = parameters[3]
+    gamma_matrix = np.stack(gamma)
+    print(gamma_matrix)
+    np.save('gamma.npy', gamma_matrix) # use gamma_new = np.load('gamma2_k50.npy') to load later
+
+  if storephi:
+    phi_lists = parameters[2]
+    #phi_3dmatrix = np.stack(phi_lists)
+    for phi in phi_lists:
+      print(phi.shape)
+    #print(phi_lists)
+    #input(phi)
+
+## Estimate theta for each document
+def get_topic_proportions_v1():
+  pass
+
+## Estimate theta for each document
+def get_topic_proportions_v1():
+  pass
+
+def get_topics_over_time():
+  pass
+
+
+
 
 ## Main function reuters
 def main_Reuters():
@@ -551,6 +582,45 @@ def main_Reuters():
 
   print()
 
+def main_Guardian():
+  # Initial parameters
+  k = 3              # Number of topics
+  num_documents = 10 #10**6
+
+  # File directories
+  vocab_file = './Code/Guardian_Vocab.csv'
+  filename = './Code/Guardian_Vectorized.csv'
+
+  # Load data
+  corpus, V = load_data(filename, num_documents)
+  
+  """ nTraining = int(num_documents * 0.9)
+
+  test = corpus[nTraining:]
+  corpus = corpus[:nTraining] """
+
+  # Run the algorithm
+  parameters = LDA_algorithm(corpus, V, k)
+
+  # Print the parameters
+  #print_parameters(parameters, False)
+
+  # Print most likely topics and words
+  alpha = parameters[0]
+  num_topics = 5 # The number of topics that should be printed
+  topic_indices = print_likely_topics(alpha, num_topics)
+  beta = parameters[1]
+  print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k, indices = topic_indices)
+
+  phi = parameters[2]
+  gamma = parameters[3]
+  #print(len(corpus), len(test))
+  #print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
+
+  store_parameters(parameters, storephi=True, storegamma=False)
+
+  print()
+
 
 ## Main function eachmovie
 def main_each_movie():
@@ -584,6 +654,8 @@ def main_each_movie():
   # print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
 
-main_Reuters()
+main_Guardian()
 
 # main_each_movie()
+
+# TODO -Flytta dessa till eget dok -Store params (testa) & FÅ IGÅNG KODEN PÅ JOARS DATOR. 4) Skriva dessa funktioner
