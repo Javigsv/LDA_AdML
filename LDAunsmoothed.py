@@ -7,6 +7,7 @@ from DataLoader import DataLoader
 import time, csv
 from datetime import datetime
 import EachMovieParser.Eachmovie_parser as eachmovie
+import pickle
 
 
 
@@ -512,24 +513,37 @@ def predictive_perplexity(beta, gamma, test_removed):
 
   return perplexity
 
+
+
+
+
 ## Store desired params as numpy files
 def store_parameters(parameters, storegamma=True, storephi=True):
   '''Function used to store parameters we get from runs. For now it only stores gamma but it can be extended with the others'''
-  
+  print('\n')
+
   if storegamma:
     gamma = parameters[3]
     gamma_matrix = np.stack(gamma)
     print(gamma_matrix)
-    np.save('gamma.npy', gamma_matrix) # use gamma_new = np.load('gamma2_k50.npy') to load later
+    np.save('gamma_k50_Guardian.npy', gamma_matrix) # use gamma_new = np.load('gamma2_k50.npy') to load later
 
   if storephi:
-    phi_lists = parameters[2]
-    #phi_3dmatrix = np.stack(phi_lists)
-    for phi in phi_lists:
-      print(phi.shape)
-    #print(phi_lists)
-    #input(phi)
+    phi_list = parameters[2]
+    for phimatrix in phi_list:
+      print(phimatrix.shape)
+    with open('phis_k50_Guardian.pkl', 'wb') as outfile:
+        pickle.dump(phi_list, outfile, pickle.HIGHEST_PROTOCOL)
 
+    with open('phis_k50_Guardian.pkl', 'rb') as infile:
+        result = pickle.load(infile)
+
+  print('\n ---')
+  #print(result)
+  for phimatrix in result:
+      print(phimatrix.shape)
+
+    
 ## Estimate theta for each document
 def get_topic_proportions_v1():
   pass
@@ -584,8 +598,8 @@ def main_Reuters():
 
 def main_Guardian():
   # Initial parameters
-  k = 3              # Number of topics
-  num_documents = 10 #10**6
+  k = 10              # Number of topics
+  num_documents = 100 #10**6
 
   # File directories
   vocab_file = './Code/Guardian_Vocab.csv'
@@ -617,9 +631,8 @@ def main_Guardian():
   #print(len(corpus), len(test))
   #print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
-  store_parameters(parameters, storephi=True, storegamma=False)
+  store_parameters(parameters, storephi=True, storegamma=True)
 
-  print()
 
 
 ## Main function eachmovie
@@ -658,4 +671,4 @@ main_Guardian()
 
 # main_each_movie()
 
-# TODO -Flytta dessa till eget dok -Store params (testa) & FÅ IGÅNG KODEN PÅ JOARS DATOR. 4) Skriva dessa funktioner
+# TODO -Flytta dessa till eget dok -Store params (testa) 4) Skriva dessa funktioner och visualiser 5) Printa inte de mest sannolika orden utan de mest unika orden (tf-idf)
