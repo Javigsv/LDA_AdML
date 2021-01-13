@@ -514,49 +514,35 @@ def predictive_perplexity(beta, gamma, test_removed):
   return perplexity
 
 
-
-
-
 ## Store desired params as numpy files
-def store_parameters(parameters, storegamma=True, storephi=True):
+def store_parameters(parameters, storegamma=True, storephi=True, storebeta=True):
   '''Function used to store parameters we get from runs. For now it only stores gamma but it can be extended with the others'''
   print('\n')
 
   if storegamma:
     gamma = parameters[3]
     gamma_matrix = np.stack(gamma)
-    print(gamma_matrix)
     np.save('gamma_k50_Guardian.npy', gamma_matrix) # use gamma_new = np.load('gamma2_k50.npy') to load later
-
+  #print(gamma_matrix)
+  #gamma = np.load('gamma_k50_Guardian.npy')
+  
   if storephi:
     phi_list = parameters[2]
-    for phimatrix in phi_list:
-      print(phimatrix.shape)
+
     with open('phis_k50_Guardian.pkl', 'wb') as outfile:
         pickle.dump(phi_list, outfile, pickle.HIGHEST_PROTOCOL)
 
-    with open('phis_k50_Guardian.pkl', 'rb') as infile:
-        result = pickle.load(infile)
+    #with open('phis_k50_Guardian.pkl', 'rb') as infile: # this is how to open the pkl file afterwards
+        #result = pickle.load(infile)
 
-  print('\n ---')
-  #print(result)
-  for phimatrix in result:
-      print(phimatrix.shape)
+  for phi in phi_list:
+    #print(phi)
 
-    
-## Estimate theta for each document
-def get_topic_proportions_v1():
-  pass
-
-## Estimate theta for each document
-def get_topic_proportions_v1():
-  pass
-
-def get_topics_over_time():
-  pass
-
-
-
+  if storebeta:
+    beta = parameters[1]
+    #print(beta)
+    np.save('beta_k50_Guardian.npy', beta) # use gamma_new = np.load('gamma2_k50.npy') to load later
+    beta = np.load('beta_k50_Guardian.npy')
 
 ## Main function reuters
 def main_Reuters():
@@ -598,8 +584,8 @@ def main_Reuters():
 
 def main_Guardian():
   # Initial parameters
-  k = 10              # Number of topics
-  num_documents = 100 #10**6
+  k = 6              # Number of topics
+  num_documents = 20 #10**6
 
   # File directories
   vocab_file = './Code/Guardian_Vocab.csv'
@@ -608,8 +594,9 @@ def main_Guardian():
   # Load data
   corpus, V = load_data(filename, num_documents)
   
-  """ nTraining = int(num_documents * 0.9)
+  print(len(corpus))
 
+  """ nTraining = int(num_documents * 0.9)
   test = corpus[nTraining:]
   corpus = corpus[:nTraining] """
 
@@ -625,13 +612,14 @@ def main_Guardian():
   topic_indices = print_likely_topics(alpha, num_topics)
   beta = parameters[1]
   print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k, indices = topic_indices)
+  store_parameters(parameters, storephi=True, storegamma=True, storebeta=True)
+
 
   phi = parameters[2]
   gamma = parameters[3]
   #print(len(corpus), len(test))
   #print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
-  store_parameters(parameters, storephi=True, storegamma=True)
 
 
 
@@ -666,8 +654,8 @@ def main_each_movie():
   # print(len(corpus), len(test))
   # print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
-
-main_Guardian()
+if __name__=='__main__':
+  main_Guardian()
 
 # main_each_movie()
 
