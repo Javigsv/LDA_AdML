@@ -5,7 +5,11 @@ from LDAunsmoothed import print_top_words_for_all_topics
 
 ## Estimate theta for a document - JOAR
 def get_topic_proportions_v1(phis):
-    pass
+    topic_proportions = []
+
+    for document in range(np.shape(phis)[0]):
+        topic_proportions.append(np.sum(phis[document],axis = 0)/np.shape(phis[document])[0])
+    return topic_proportions
 
 ## Estimate theta for a document - EMIL
 def get_topic_proportions_v2(gammas):
