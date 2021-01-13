@@ -8,21 +8,49 @@ def get_topic_proportions_v1(phis):
     pass
 
 ## Estimate theta for a document - EMIL
-def get_topic_proportions_v2(gamma):
-    input(gamma)
-    
+def get_topic_proportions_v2(gammas):
+    '''Computes the expected values of the q(theta | gamma) for each document <=> estimated topic proportions'''
+    # TODO -Add moving avg. smoothing / regression splines
+
+    alpha_sum_vector = np.sum(gammas, axis=1)
+    exp_topic_proportions = gammas / alpha_sum_vector[:,None]
+    print(exp_topic_proportions.shape)
+    #print(np.sum(exp_topic_proportions, axis=1))   
+
+    return exp_topic_proportions
 
 ## Get topic proportions over time. Joar from this function we will call the functions above
 ## ... by looping through documents
-def get_topics_over_time():
+def get_topics_over_time(gammas, topic_indices, topic_names, timestep = 'month'):
+    '''Function to visualize topic evolution over time'''
+    
+    # Calculate estimated topic proportions
+    exp_topic_proportions = get_topic_proportions_v2(gammas) # Emils
+    est_topic_proportions = get_topic_proportions_v2(gammas) # Joars
+
+    if timestep=='month':
+
+        pass
+    elif timestep=='week':
+        pass
+    else:
+        input('INVALID TIMESTEP')
+
+    # Choose top
+
+
     pass
 
 def main():
-    gammas = np.load('gamma2_k50_backup_reuters.npy')
-    print(gammas)
-    single_test_gamma = gammas[0]
-    get_topic_proportions_v2(gamma)
-    input(gammas.shape)
+    # Load computed data
+    gammas = np.load('./Official Param Results/gamma_k50_Guardian.npy')
+    with open('phis_k50_Guardian.pkl', 'rb') as infile: # this is how to open the pkl file afterwards
+        phis = pickle.load(infile)
+    
+    get_topic_proportions_v2(gammas)
+
+
+
 
 
 def aftermath():
@@ -49,5 +77,5 @@ def aftermath():
       print(phimatrix.shape) 
 
 if __name__=='__main__':
-    #main()
-    aftermath()
+    main()
+    #aftermath()

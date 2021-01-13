@@ -525,7 +525,7 @@ def store_parameters(parameters, storegamma=True, storephi=True, storebeta=True)
     np.save('gamma_k50_Guardian.npy', gamma_matrix) # use gamma_new = np.load('gamma2_k50.npy') to load later
   #print(gamma_matrix)
   #gamma = np.load('gamma_k50_Guardian.npy')
-  
+
   if storephi:
     phi_list = parameters[2]
 
@@ -535,8 +535,6 @@ def store_parameters(parameters, storegamma=True, storephi=True, storebeta=True)
     #with open('phis_k50_Guardian.pkl', 'rb') as infile: # this is how to open the pkl file afterwards
         #result = pickle.load(infile)
 
-  for phi in phi_list:
-    #print(phi)
 
   if storebeta:
     beta = parameters[1]
