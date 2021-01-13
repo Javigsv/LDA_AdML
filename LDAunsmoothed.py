@@ -7,6 +7,7 @@ from DataLoader import DataLoader
 import time, csv
 from datetime import datetime
 import EachMovieParser.Eachmovie_parser as eachmovie
+import pickle
 
 
 
@@ -377,7 +378,7 @@ def print_top_words_for_all_topics(vocab_file, beta, top_x, k, indices = []):
 
   # Read index-word vocabulary from file
   index_word_vocab = {}
-  with open(vocab_file, mode='r') as csv_file:
+  with open(vocab_file, mode='r', encoding='utf-8') as csv_file:
             reader = csv.reader(csv_file, delimiter=',')
             for line in reader:
               if line:
@@ -513,6 +514,34 @@ def predictive_perplexity(beta, gamma, test_removed):
   return perplexity
 
 
+## Store desired params as numpy files
+def store_parameters(parameters, storegamma=True, storephi=True, storebeta=True):
+  '''Function used to store parameters we get from runs. For now it only stores gamma but it can be extended with the others'''
+  print('\n')
+
+  if storegamma:
+    gamma = parameters[3]
+    gamma_matrix = np.stack(gamma)
+    np.save('gamma_k50_Guardian.npy', gamma_matrix) # use gamma_new = np.load('gamma2_k50.npy') to load later
+  #print(gamma_matrix)
+  #gamma = np.load('gamma_k50_Guardian.npy')
+
+  if storephi:
+    phi_list = parameters[2]
+
+    with open('phis_k50_Guardian.pkl', 'wb') as outfile:
+        pickle.dump(phi_list, outfile, pickle.HIGHEST_PROTOCOL)
+
+    #with open('phis_k50_Guardian.pkl', 'rb') as infile: # this is how to open the pkl file afterwards
+        #result = pickle.load(infile)
+
+
+  if storebeta:
+    beta = parameters[1]
+    #print(beta)
+    np.save('beta_k50_Guardian.npy', beta) # use gamma_new = np.load('gamma2_k50.npy') to load later
+    beta = np.load('beta_k50_Guardian.npy')
+
 ## Main function reuters
 def main_Reuters():
   # Initial parameters
@@ -551,6 +580,46 @@ def main_Reuters():
 
   print()
 
+def main_Guardian():
+  # Initial parameters
+  k = 6              # Number of topics
+  num_documents = 20 #10**6
+
+  # File directories
+  vocab_file = './Code/Guardian_Vocab.csv'
+  filename = './Code/Guardian_Vectorized.csv'
+
+  # Load data
+  corpus, V = load_data(filename, num_documents)
+  
+  print(len(corpus))
+
+  """ nTraining = int(num_documents * 0.9)
+  test = corpus[nTraining:]
+  corpus = corpus[:nTraining] """
+
+  # Run the algorithm
+  parameters = LDA_algorithm(corpus, V, k)
+
+  # Print the parameters
+  #print_parameters(parameters, False)
+
+  # Print most likely topics and words
+  alpha = parameters[0]
+  num_topics = 5 # The number of topics that should be printed
+  topic_indices = print_likely_topics(alpha, num_topics)
+  beta = parameters[1]
+  print_top_words_for_all_topics(vocab_file, beta, top_x=15, k=k, indices = topic_indices)
+  store_parameters(parameters, storephi=True, storegamma=True, storebeta=True)
+
+
+  phi = parameters[2]
+  gamma = parameters[3]
+  #print(len(corpus), len(test))
+  #print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
+
+
+
 
 ## Main function eachmovie
 def main_each_movie():
@@ -583,7 +652,9 @@ def main_each_movie():
   # print(len(corpus), len(test))
   # print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
-
-main_Reuters()
+if __name__=='__main__':
+  main_Guardian()
 
 # main_each_movie()
+
+# TODO -Flytta dessa till eget dok -Store params (testa) 4) Skriva dessa funktioner och visualiser 5) Printa inte de mest sannolika orden utan de mest unika orden (tf-idf)

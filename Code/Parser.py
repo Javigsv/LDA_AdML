@@ -11,8 +11,8 @@ import csv
 
 class ReutersCorpusPreprocessor():
     '''Class for preprocessing ONLY the Reuters 21578 corpus. Some of the methods are specifically adapted for the Reuters 21578 dataset
-    but the same base could potentially be used for other Corpora. Used for both vectorizing each document in the corpus (and creating an accompanying 
-    vocabulary) and a single test for seeing that the vectorization was in fact correct'''
+    but the same base could potentially be used for other Corpora. Used for both vectorizing each document in the corpus and creating an accompanying 
+    vocabulary. Also includes a function to test for that the vectorization was in fact correct'''
 
 
     def __init__(self):
@@ -22,6 +22,7 @@ class ReutersCorpusPreprocessor():
         self.word_index_vocab = {}  # maps from a word to its index for all unique words in the corpus
         self.unique_words_counter = 1   # Used to index through 
         self.csv_writer_vectorized_documents = None    # stores the csv file object for the vectorized documents. For writing the word_index_vocabulary no instance variable is needed
+        self.document_labels = []   # Used to store labels for each document.
 
         # These are for testing purposes only
         self.index_word_vocab = {}  # Maps from index to word
@@ -66,11 +67,22 @@ class ReutersCorpusPreprocessor():
     def write_word_index_vocab(self, filename):
         '''Function for writing a csv document with the word-index pairs'''
 
-        with open(filename + '.csv', mode='w') as csv_file:
+        with open(filename + '.csv', mode='w', encoding="utf8") as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=',')
 
             for key, value in self.word_index_vocab.items():
-                csv_writer.writerow([key, value])
+                try:
+                    csv_writer.writerow([key, value])
+                except UnicodeEncodeError:
+                    print('\n\n Error vectorize:', document_vector)
+
+    
+    def write_labels(self):
+        label_filename = 'Reuters labels'
+        with open(label_filename + '.csv', mode='w') as csv_file:
+            csv_writer = csv.writer(csv_file, delimiter=',')
+            for doc_labels in self.document_labels:
+                csv_writer.writerow(doc_labels)
 
 
     def vectorize_document(self, wordlist):
@@ -86,8 +98,11 @@ class ReutersCorpusPreprocessor():
                 self.unique_words_counter += 1
                 self.word_index_vocab[word] = index
                 document_vector.append(index)
+        try:
+            self.csv_writer.writerow(document_vector)
+        except UnicodeEncodeError:
+            print('\n\n Error vectorize:', document_vector)
 
-        self.csv_writer.writerow(document_vector)
 
 
     def preprocess_reuters_sgml(self, abs_filepath, testing=False):    
@@ -99,18 +114,22 @@ class ReutersCorpusPreprocessor():
             self.flag = False   # temporary
 
             for article in soup.find_all(modApte_training_samples_screened):
-            
+                
+                topic_tags = article.topics.find_all('d')
+                labels = []
+                for topic_tag in topic_tags:
+                    labels.append(topic_tag.string)
+                
+
+
                 #print(article.prettify(), '\n')
                 text_tag = article.find('text')     # OBS: must use .find() here since the tag's name is "text"
                 #title = text_tag.title.string      # should title be included or only bodytext?
-                #print(title)
-                body = text_tag.find_all(text=True, recursive=False)    # this is apparently how you do it with bs4. It returns a list with "\n" for tags and a non-empty string for the actual text
-                #print(body)
+                body = text_tag.find_all(text=True, recursive=False)    # this is apparently how you find all bodytext with bs4. It returns a list with "\n" for tags and a non-empty string for the actual text
                 body_string = ' '.join(body)
-                #input(body_string)
                 body_string = body_string.replace('/',' ')
                 sentences = [nltk.word_tokenize(t) for t in nltk.sent_tokenize(body_string)]
-                
+
                 # Filter and process the words in the document
                 final_word_list = [self.process_word_1(word) 
                                     for sentence in sentences 
@@ -123,6 +142,7 @@ class ReutersCorpusPreprocessor():
                 if not testing: # if we are creating the vectorized file and vocabulary
                     #input(' '.join(final_word_list))
                     self.vectorize_document(final_word_list)
+                    self.document_labels.append(labels)
                     self.document_counter += 1
                     
                 else:   # if we are iterating through to test
@@ -168,8 +188,10 @@ class ReutersCorpusPreprocessor():
                     self.document_counter += 1
         if not testing:
             print(self.document_counter, ' documents have been processed')
+            #print(self.document_labels)
         if testing:
             print(self.document_counter, ' documents have been tested')
+
 
     def parse_reuters_21578_corpus(self, corpus_file, word_index_vocabulary_file, testing = False): # rename function?, creating / testing
         '''Used to loop through all sgml_files '''
@@ -197,7 +219,8 @@ class ReutersCorpusPreprocessor():
                     self.preprocess_reuters_sgml(abs_filepath, testing)
 
             self.write_word_index_vocab(word_index_vocabulary_file)
-        
+            self.write_labels()
+
         elif testing:
             for i in range(22): # since the data is constant and we only do it once we can hardcode here
                     if i < 10:
@@ -241,6 +264,35 @@ class ReutersCorpusPreprocessor():
 
         # Results,
 
+    def parse_guardian_corpus(self, guardian_file, corpus_file, vocab_file, testing=False):
+        with open(corpus_file + '.csv', mode='w', encoding="utf8") as csv_file:
+            self.csv_writer = csv.writer(csv_file, delimiter=',')
+            
+            with open(guardian_file, mode='r', encoding="utf8") as csv_file:
+                reader = csv.reader(csv_file, delimiter=',')
+                for line in reader:
+                    if line:
+                        body_string = line[-1]
+                        sentences = [nltk.word_tokenize(t) for t in nltk.sent_tokenize(body_string)]
+                        final_word_list = [self.process_word_1(word) 
+                                    for sentence in sentences 
+                                        for word in sentence
+                                            if self.word_filter_1(word)]   
+                        #print(body_string)
+                        #input(final_word_list)
+            
+                        if len(final_word_list) == 0:   
+                                break
+
+                        if not testing: # if we are creating the vectorized file and vocabulary
+                            self.vectorize_document(final_word_list)
+                            self.document_counter += 1
+                            print(self.document_counter)
+                    
+        self.write_word_index_vocab(vocab_file)
+
+                         
+
 
 ### Class helper function
 
@@ -249,7 +301,7 @@ def modApte_training_samples_screened(tag):
     also screens out the articles with topic attribute='YES but containing no TOPICS categories'''
     
     #Official
-    return tag.name=='reuters' and tag['topics'] == "YES" and tag['lewissplit'] == "TRAIN" and tag.topics.d
+    return tag.name=='reuters' and tag['topics'] == "YES" and tag['lewissplit'] == "TRAIN" and tag.topics.d # last clause to only include topics with at least one topic
 
     # The one below seems more reasonable but has 10794 matching documents:
     #tag.name=='reuters' and tag['topics'] == "YES" and (tag['lewissplit'] == "TRAIN" or tag['lewissplit'] == 'TEST') and tag.topics.d
@@ -259,12 +311,14 @@ def modApte_training_samples_screened(tag):
 
 
 def main():
-    corpus_file = 'Reuters_Corpus_Vectorized'; word_index_vocabulary_file = 'Reuters_Corpus_Vocabulary'
+    corpus_file = 'Reuters_asdfCorpus_Vectorized'; word_index_vocabulary_file = 'Reuters_asdfCorpus_Vocabulary'
 
     cp = ReutersCorpusPreprocessor()
     #cp.parse_reuters_21578_corpus(corpus_file, word_index_vocabulary_file)
-    cp.test_vectorization(corpus_file, word_index_vocabulary_file)
+    #cp.test_vectorization(corpus_file, word_index_vocabulary_file)
     
+    cp.parse_guardian_corpus('Guardian - Filtered.csv', 'Guardian_Vectorized.csv', 'Guardian_Vocab.csv')
+
     print(cp.document_counter)
 
 if __name__ == '__main__':
