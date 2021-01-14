@@ -331,6 +331,8 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     phi_new, gamma_new = [], []
 
     for (d,document) in enumerate(corpus):
+      # if (d+1) % 100 == 0:
+        # print("\t", d+1, "articles finished")
       phi_d, gamma_d = VI_algorithm(k, document, phi_old[d], gamma_old[d], lambda_old, alpha_old, beta_old, eta_old, alpha_sum_old)
       phi_new.append(phi_d); gamma_new.append(gamma_d)
     
@@ -468,7 +470,7 @@ def smooth_beta(beta):
   for j in range(V):
     if np.sum(beta[:,j]) == 0:
       num_smoothings += 1
-      beta[:,j] = np.ones(k)
+      beta[:,j] = np.ones(k) / V
 
   print(num_smoothings, "smoothings were needed!")
 
@@ -678,7 +680,7 @@ def main_Reuters():
 ## Main function eachmovie
 def main_each_movie():
   # Initial parameters
-  k = 10             # Number of topics
+  k = 50             # Number of topics
   num_users = 3200
   num_test_users = 390
 
@@ -710,7 +712,7 @@ def main_each_movie():
 def main_Guardian():
   # Initial parameters
   k = 150              # Number of topics
-  num_documents = 200 #10**6
+  num_documents = 8000 #10**6
 
   # File directories
   vocab_file = './Code/Guardian_Vocab.csv'
@@ -749,7 +751,8 @@ def main_Guardian():
 
 
 if __name__=='__main__':
-  main_Guardian()
+  # main_Guardian()
+  main_each_movie()
 
 # main_Reuters()
 
