@@ -86,7 +86,7 @@ def initialize_parameters_EM(V, k):
 
 
 ## Calculate phi for document m
-def calculate_phi(gamma, lambdas, document, k):
+def calculate_phi2(gamma, lambdas, document, k):
   N = len(document)
 
   phi = []
@@ -103,6 +103,16 @@ def calculate_phi(gamma, lambdas, document, k):
     phi.append(phi_n) 
   
   phi = np.array(phi)
+  
+  return phi
+
+## Calculate phi for document m
+def calculate_phi(gamma, lambdas, document, k):
+  # N = len(document)
+
+  phi = np.exp(digamma(lambdas[:, document]).T - digamma(np.sum(lambdas, axis=1)) + digamma(gamma))
+
+  phi = phi/np.sum(phi, axis = 1)[:, np.newaxis]
   
   return phi
 
@@ -257,13 +267,13 @@ def calc_lower_bound(alpha, eta, lambdas, phi, gamma, k, V, document):
 
 
 ## VI-algorithm run during the E-step for every document m
-def VI_algorithm(document, k, V, lambdas, alpha, eta, gamma_old, tolerance = 1e-2, debug = False):
-  # gamma_old = np.ones(k)
+def VI_algorithm(document, k, V, lambdas, alpha, eta, gamma_old, tolerance = 1e-6, debug = False):
+  gamma_old = alpha + len(document) / k
   
   # Extended pseudocode from page 1005
-  it = 0
+  # it = 0
   while True:
-    it += 1
+    # it += 1
 
     # Calculate the new phis
     phi_new = calculate_phi(gamma_old, lambdas, document, k)
@@ -292,10 +302,10 @@ def EM_algorithm_lambda(corpus, k, V, alpha, eta, lambda_old, gamma_old, toleran
     # if (d+1) % int(M/10) == 0 and d > 0:
     #   percentage += 1
     #   print("\t{}% of VI converged".format(percentage * 10))
-    phi_d, gamma_d = VI_algorithm(corpus[d], k, V, lambda_old, alpha, eta, gamma_old[d])
+    phi_d, gamma_d = VI_algorithm(corpus[d], k, V, lambda_old, alpha, eta, 1)
     phi_new.append(phi_d); gamma_new.append(gamma_d)
 
-  gamma_old = gamma_new
+  # gamma_old = gamma_new
 
   return phi_new, gamma_new
 
@@ -330,7 +340,7 @@ def LDA_algorithm(corpus, V, k, tolerance = 1e-4):
     phi_new, gamma_new = EM_algorithm_lambda(corpus, k, V, alpha_old, eta_old, lambda_old, gamma_old)
     
     stop = time.time()
-    print('\n...completed in:', stop - start)
+    print('...completed in:', stop - start)
     ##################
     # --- M-step --- #
     ##################
@@ -497,11 +507,9 @@ def print_perplexity(alpha, beta, phi, gamma, k, training, test):
 
 
 ## printing predictive perplexity
-def print_predictive_perplexity(alpha, eta, lambdas, test, test_removed, V):
+def print_predictive_perplexity(alpha, eta, lambdas, beta, test, test_removed, V):
   k = len(alpha)
-  M = len(test)
-
-  beta = lambdas / np.sum(lambdas, axis = 1)
+  M = len(test)  
 
   gamma_old = [np.ones(k) for i in range(len(test))]
 
@@ -532,7 +540,7 @@ def predictive_perplexity(beta, gamma, test_removed):
 def main_Reuters():
   # Initial parameters
   k = 10             # Number of topics
-  num_documents = 30 #10**6
+  num_documents = 300 #10**6
 
   # File directories
   # vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
@@ -560,7 +568,7 @@ def main_Reuters():
   print_top_words_for_all_topics(vocab_file, lambdas, top_x=15, k=k, indices = topic_indices)
 
   # print(len(corpus), len(test))
-  # print_perplexity(alpha, eta, lambdas, phi, gamma, k, corpus, test)
+  print_perplexity(alpha, eta, lambdas, phi, gamma, k, corpus, test)
 
   # print()
 
@@ -568,9 +576,9 @@ def main_Reuters():
 ## Main function eachmovie
 def main_each_movie():
   # Initial parameters
-  k = 10             # Number of topics
-  num_users = 50
-  num_test_users = 5
+  k = 20             # Number of topics
+  num_users = 3200
+  num_test_users = 390
 
   # File directories
   filename = "filtered_corpus.txt"
@@ -589,7 +597,16 @@ def main_each_movie():
 
   # alpha, beta = parameters[0], parameters[1]
 
-  print_predictive_perplexity(alpha, eta, lambdas, test_data, removed_movies, V)  
+  beta = lambdas / np.sum(lambdas, axis = 1)[:, np.newaxis]
+
+  # print(beta)
+
+  # print(beta.shape)
+  # print(lambdas.shape)
+
+  # print(np.sum(beta.T, axis=0).shape)
+
+  print_predictive_perplexity(alpha, eta, lambdas, beta, test_data, removed_movies, V)  
 
   # phi = parameters[2]
   # gamma = parameters[3]
@@ -597,9 +614,9 @@ def main_each_movie():
   # print_perplexity(alpha, beta, phi, gamma, k, corpus, test)
 
 
-main_Reuters()
+# main_Reuters()
 
 
-# main_each_movie()
+main_each_movie()
 
 
