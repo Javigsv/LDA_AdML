@@ -162,23 +162,36 @@ class mixture_of_unigram():
 		return topic
 
 
+
+	def log_sum_exp(self, x):
+
+		xp = np.max(x)
+
+		lse = xp + np.log(np.sum(np.exp(x - xp)))
+
+		return lse
+		
+
+
 	def perplexity(self, test_corpus):
 		
 		log_p_corpus = 0
 		tot_N = 0
-
 		for doc in test_corpus:
 			p_doc = 0
+			values = []
 			for z in range(self.topic_num):
 				log_p_doc_given_z = 0
 				for w in doc:
 					p_w_given_z = self.topic2word[int(z),int(w)]
+					#print('\t\t', p_w_given_z, np.log(p_w_given_z))
 					log_p_doc_given_z += np.log(p_w_given_z)
-				p_z = self.topic[z]
+				
+				log_p_z = np.log(self.topic[z])
+				#print('\t', log_p_doc_given_z, np.exp(log_p_doc_given_z))
+				values.append(log_p_z + log_p_doc_given_z)			
 
-				p_doc += p_z * np.exp(log_p_doc_given_z)
-
-			log_p_corpus += np.log(p_doc)
+			log_p_corpus += self.log_sum_exp(np.array(values))
 			tot_N += len(doc)
 
 		exp = -log_p_corpus / tot_N

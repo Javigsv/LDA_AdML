@@ -3,6 +3,13 @@ from sklearn.feature_extraction.text import CountVectorizer
 import numpy as np
 from DataLoader import DataLoader
 import csv
+import sys
+
+log = open("mixture.log", "a")
+sys.stdout = log
+
+np.set_printoptions(threshold=sys.maxsize)
+
 
 def load_data(filename, num_documents = 10**6):
 
@@ -41,7 +48,7 @@ def get_words_from_indexes(indices):
 
 
 # Initial parameters
-num_documents =  200
+num_documents =  2000
 laplace_smoothing = 2
 k = 15
 
