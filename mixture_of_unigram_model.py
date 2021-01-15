@@ -92,7 +92,6 @@ class mixture_of_unigram():
 			
 	def __maximization(self,word_matrix,doc2topic):
 		#doc2topic of size doc_num*topic.
-
 		#new topic sampling probability.
 		assert np.all((doc2topic.sum(axis=0)+self.alpha-1)>=0) and ((word_matrix.shape[0]+self.topic_num*(self.alpha-1))!=0)  ,"vectorizer error or reset alpha"
 		
@@ -178,17 +177,14 @@ class mixture_of_unigram():
 		log_p_corpus = 0
 		tot_N = 0
 		for doc in test_corpus:
-			p_doc = 0
 			values = []
 			for z in range(self.topic_num):
 				log_p_doc_given_z = 0
 				for w in doc:
 					p_w_given_z = self.topic2word[int(z),int(w)]
-					#print('\t\t', p_w_given_z, np.log(p_w_given_z))
 					log_p_doc_given_z += np.log(p_w_given_z)
 				
 				log_p_z = np.log(self.topic[z])
-				#print('\t', log_p_doc_given_z, np.exp(log_p_doc_given_z))
 				values.append(log_p_z + log_p_doc_given_z)			
 
 			log_p_corpus += self.log_sum_exp(np.array(values))
@@ -197,5 +193,57 @@ class mixture_of_unigram():
 		exp = -log_p_corpus / tot_N
 		return np.exp(exp)
 
+
+	def predictive_perplexity(self, test_corpus, removed):
+		
+		log_p_corpus = 0
+		M = len(test_corpus)
+		for m, user in enumerate(test_corpus):
+			values = []
+			values_wobs = []
+			wrem = removed[m]
+			for z in range(self.topic_num):
+				
+				p_wrem_given_z = self.topic2word[z, wrem]
+				log_p_wrem_given_z = np.log(p_wrem_given_z)
+				log_p_z = np.log(self.topic[z])
+				
+				values.append(log_p_wrem_given_z + log_p_z)
+
+
+
+			log_p_corpus += self.log_sum_exp(np.array(values))
+
+		exp = -log_p_corpus / M
+		return np.exp(exp)
+
+	
+	
+	def predictive_perplexity2(self, test_corpus, removed):
+		
+		log_p_corpus = 0
+		M = len(test_corpus)
+		for m, user in enumerate(test_corpus):
+			values = []
+			values_wobs = []
+			wrem = removed[m]
+			for z in range(self.topic_num):
+				log_p_wobs_given_z = 0
+				for w in user:
+					p_w_given_z = self.topic2word[int(z),int(w)]
+					#print('\t\t', p_w_given_z, np.log(p_w_given_z))
+					log_p_wobs_given_z += np.log(p_w_given_z)
+				
+				log_p_z = np.log(self.topic[z])
+				log_p_wrem_given_z = self.topic2word[int(z),int(wrem)]
+				#print('\t', log_p_doc_given_z, np.exp(log_p_doc_given_z))
+				values.append(log_p_wrem_given_z + log_p_z + log_p_wobs_given_z)
+				values_wobs.append(log_p_z + log_p_wobs_given_z)
+
+
+			log_p_corpus += self.log_sum_exp(np.array(values)) - self.log_sum_exp(np.array(values_wobs))
+
+		exp = -log_p_corpus / M
+		return np.exp(exp)
 		
 

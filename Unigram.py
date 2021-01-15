@@ -76,12 +76,12 @@ def smoothing(beta):
 ## Main function
 def main():
   # Initial parameters
-  num_documents =  2000
-  laplace_smoothing = 0
+  num_documents =  10**6
+  laplace_smoothing = 1
 
   # File directories
-  vocab_file = './Code/Reuters_Corpus_Vocabulary.csv'
-  filename = './Code/Reuters_Corpus_Vectorized.csv'
+  vocab_file = './Code/Guardian_Vocabulary.csv'
+  filename = './Code/Guardian_Vectorized.csv'
 
   # Load data
   corpus, V = load_data(filename, num_documents)
