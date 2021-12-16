@@ -2,7 +2,7 @@
 
 In this project we re-implemented the Latent Dirichlet Allocation (LDA) as described in the [2003 Blei et. al. paper](https://github.com/Javigsv/LDA_AdML/blob/main/LDA%20paper.pdf). The model was originally created for topic modelling in large corpora in order to find low-dimensional representations of documents while retaining statistical relationships useful for tasks relating to information retrieval.
 
-The model is trained with an Variational Inference - Expectation Maximization (VI-EM) alogirthm. Read more in the [final report](https://github.com/Javigsv/LDA_AdML/blob/main/Report%20-%20Large%20VI%20-%20DD2434.pdf).
+The model is trained with an Variational Inference - Expectation Maximization (VI-EM) alogrithm. Read more in the [final report](https://github.com/Javigsv/LDA_AdML/blob/main/Report%20-%20Large%20VI%20-%20DD2434.pdf).
 
 This was the final project of the course _DD2434 Machine Learning, Advanced Course_ during the fall of 2020.
 
