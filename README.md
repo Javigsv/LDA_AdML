@@ -14,7 +14,7 @@ Here are a small sample of the results are presented.
 
 Using the model parameters one can approximate the "popularity" of topics over time. This can be seen for three topics in the graph below:
 
-![Topics over time](/Images/topicovertime.png)
+![Topics over time](/Images/topicsovertime.png)
 
 Is this graph accurate?
 
