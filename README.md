@@ -8,7 +8,7 @@ This was the final project of the course _DD2434 Machine Learning, Advanced Cour
 
 ## Results
 
-Here are a small sample of the results are presented.
+Here is a small sample of the results are presented.
 
 ### Topics over time
 
