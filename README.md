@@ -16,7 +16,7 @@ Using the model parameters one can approximate the "popularity" of topics over t
 
 ![Topics over time](/Images/topicsovertime.png)
 
-Is this graph accurate?
+Is this graph accurate? Let's have a look at what happened during that time period.
 
 _Regarding climate, the peak is subjected around January 2017, which was a period when the Trump administration actively worked to erase ex-president Barack Obama’s climate initiatives. The graph of the Russian Election Allegations which gained large media traction after members of the United States Congress publicly disclosed a potential russian interference in the 2016 election. The media attention continued to increase as more US intelligence agencies confirmed the suspicions and the Office of the Director of National Intelligence published its detailed report in January 2017. Notably, the last peak from 2017-05 to 2017-07 coincides with the news surrounding Trump’s dismissal of James Comey, the FBI director, in may 9th, 2017._
 
